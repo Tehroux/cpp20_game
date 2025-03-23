@@ -1,0 +1,45 @@
+{
+	"modules" : 
+	{
+		"board" : 
+		{
+			"bmi" : "/home/tehroux/MyProject/build/CMakeFiles/my_app.dir/board.pcm",
+			"is-private" : true
+		},
+		"gui" : 
+		{
+			"bmi" : "/home/tehroux/MyProject/build/CMakeFiles/my_app.dir/gui.pcm",
+			"is-private" : true
+		},
+		"sprite" : 
+		{
+			"bmi" : "/home/tehroux/MyProject/build/CMakeFiles/my_app.dir/sprite.pcm",
+			"is-private" : true
+		}
+	},
+	"references" : 
+	{
+		"board" : 
+		{
+			"lookup-method" : "by-name",
+			"path" : "CMakeFiles/my_app.dir/board.pcm"
+		},
+		"gui" : 
+		{
+			"lookup-method" : "by-name",
+			"path" : "CMakeFiles/my_app.dir/gui.pcm"
+		},
+		"sprite" : 
+		{
+			"lookup-method" : "by-name",
+			"path" : "CMakeFiles/my_app.dir/sprite.pcm"
+		}
+	},
+	"usages" : 
+	{
+		"gui" : 
+		[
+			"sprite"
+		]
+	}
+}

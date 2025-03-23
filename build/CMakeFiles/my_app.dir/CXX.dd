@@ -1,0 +1,26 @@
+ninja_dyndep_version = 1.0
+build CMakeFiles/my_app.dir/src/main.cpp.o: dyndep | CMakeFiles/my_app.dir/gui.pcm
+
+build CMakeFiles/my_app.dir/external/imgui/imgui.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/imgui_demo.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/imgui_draw.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/imgui_tables.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/imgui_widgets.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/backends/imgui_impl_sdl3.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/external/imgui/backends/imgui_impl_sdlrenderer3.cpp.o: dyndep
+
+build CMakeFiles/my_app.dir/src/gui.cpp.o | CMakeFiles/my_app.dir/gui.pcm: dyndep | CMakeFiles/my_app.dir/sprite.pcm
+  restat = 1
+
+build CMakeFiles/my_app.dir/src/sprite.cpp.o | CMakeFiles/my_app.dir/sprite.pcm: dyndep
+  restat = 1
+
+build CMakeFiles/my_app.dir/src/board.cpp.o | CMakeFiles/my_app.dir/board.pcm: dyndep
+  restat = 1
+

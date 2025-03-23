@@ -1,0 +1,9 @@
+{
+  "revision": 0,
+  "rules": [
+    {
+      "primary-output": "CMakeFiles/my_app.dir/external/imgui/backends/imgui_impl_sdlrenderer3.cpp.o"
+    }
+  ],
+  "version": 1
+}

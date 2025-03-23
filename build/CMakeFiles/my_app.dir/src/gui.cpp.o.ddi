@@ -1,0 +1,21 @@
+{
+  "revision": 0,
+  "rules": [
+    {
+      "primary-output": "CMakeFiles/my_app.dir/src/gui.cpp.o",
+      "provides": [
+        {
+          "is-interface": true,
+          "logical-name": "gui",
+          "source-path": "/home/tehroux/MyProject/src/gui.cpp"
+        }
+      ],
+      "requires": [
+        {
+          "logical-name": "sprite"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}
