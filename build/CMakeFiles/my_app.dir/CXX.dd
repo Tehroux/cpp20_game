@@ -18,6 +18,9 @@ build CMakeFiles/my_app.dir/external/imgui/backends/imgui_impl_sdlrenderer3.cpp.
 build CMakeFiles/my_app.dir/src/gui.cpp.o | CMakeFiles/my_app.dir/gui.pcm: dyndep | CMakeFiles/my_app.dir/sprite.pcm
   restat = 1
 
+build CMakeFiles/my_app.dir/src/tile.cpp.o | CMakeFiles/my_app.dir/tile.pcm: dyndep
+  restat = 1
+
 build CMakeFiles/my_app.dir/src/sprite.cpp.o | CMakeFiles/my_app.dir/sprite.pcm: dyndep
   restat = 1
 

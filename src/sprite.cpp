@@ -6,17 +6,17 @@ module;
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 
-
 export module sprite;
 
-export using SdlTexturePtr = std::unique_ptr<SDL_Texture, void (*)(SDL_Texture *)>;
+export using SdlTexturePtr =
+    std::unique_ptr<SDL_Texture, void (*)(SDL_Texture *)>;
 
 export class CharacterSprite {
 public:
   CharacterSprite(const std::string &name, size_t x, size_t y, size_t h,
-                  size_t w);
+                  size_t w, bool canRun, bool cantHit);
 
-  auto name() -> const std::string& { return _name; }
+  auto name() -> const std::string & { return _name; }
 
   auto getIdleTextureRect() -> SDL_FRect;
   auto getRunTextureRect() -> SDL_FRect;
@@ -34,7 +34,7 @@ public:
   auto setIdle() { this->running = false; }
 
   auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, int x, int y,
-              size_t frameCount);
+              size_t frameCount, int winHeight);
 
 private:
   std::string _name;
@@ -46,12 +46,14 @@ private:
   bool hit;
   bool running;
   bool direction;
+  bool _canRun;
+  bool _canHit;
 };
 
 CharacterSprite::CharacterSprite(const std::string &name, size_t x, size_t y,
-                                 size_t h, size_t w)
+                                 size_t h, size_t w, bool canRun, bool canHit)
     : _name{name}, _x{x}, _y{y}, _h{h}, _w{w}, index{0}, hit{false},
-      running{false}, direction{false} {}
+      running{false}, direction{false}, _canRun{canRun}, _canHit{canHit} {}
 
 auto CharacterSprite::getIdleTextureRect() -> SDL_FRect {
   return {static_cast<float>(_x + index * _w), static_cast<float>(_y),
@@ -69,10 +71,10 @@ auto CharacterSprite::getHitTextureRect() -> SDL_FRect {
 }
 
 auto CharacterSprite::getTextureRect() -> SDL_FRect {
-  if (hit) {
+  if (_canHit && hit) {
     hit = false;
     return getHitTextureRect();
-  } else if (running) {
+  } else if (_canRun && running) {
     return getRunTextureRect();
   } else {
     return getIdleTextureRect();
@@ -87,11 +89,11 @@ auto CharacterSprite::getDestRect(int x, int y) -> SDL_FRect {
 auto CharacterSprite::incIndex() { index = ++index % 4; }
 
 auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                             int x, int y, size_t frameCount) {
+                             int x, int y, size_t frameCount, int winHeight) {
   if (frameCount % 2 == 0)
     incIndex();
 
-  SDL_FRect destRect = getDestRect(x, y);
+  SDL_FRect destRect = getDestRect(x, winHeight - (y + _h)*2);
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 

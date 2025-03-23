@@ -29,7 +29,7 @@ add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 add_subdirectory(external/entt EXCLUDE_FROM_ALL)
 
 add_executable(my_app src/main.cpp ${IMGUI_SRC})
-target_sources(my_app PRIVATE FILE_SET CXX_MODULES FILES src/gui.cpp src/sprite.cpp  src/board.cpp)
+target_sources(my_app PRIVATE FILE_SET CXX_MODULES FILES src/gui.cpp src/tile.cpp src/sprite.cpp  src/board.cpp)
 target_include_directories(my_app PRIVATE external/imgui)
 target_link_libraries(my_app PRIVATE SDL3::SDL3 SDL3_image::SDL3_image OpenGL::GL)
 

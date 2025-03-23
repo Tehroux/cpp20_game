@@ -35,6 +35,16 @@
 			"source" : "/home/tehroux/MyProject/src/sprite.cpp",
 			"type" : "CXX_MODULES",
 			"visibility" : "PRIVATE"
+		},
+		"CMakeFiles/my_app.dir/src/tile.cpp.o" : 
+		{
+			"bmi-only" : false,
+			"destination" : null,
+			"name" : "CXX_MODULES",
+			"relative-directory" : "src",
+			"source" : "/home/tehroux/MyProject/src/tile.cpp",
+			"type" : "CXX_MODULES",
+			"visibility" : "PRIVATE"
 		}
 	},
 	"dir-cur-bld" : "/home/tehroux/MyProject/build",

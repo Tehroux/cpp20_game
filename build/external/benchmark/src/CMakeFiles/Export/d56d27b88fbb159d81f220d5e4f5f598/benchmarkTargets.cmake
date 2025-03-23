@@ -56,16 +56,14 @@ if(_IMPORT_PREFIX STREQUAL "/")
 endif()
 
 # Create imported target benchmark::benchmark
-add_library(benchmark::benchmark STATIC IMPORTED)
+add_library(benchmark::benchmark SHARED IMPORTED)
 
 set_target_properties(benchmark::benchmark PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "BENCHMARK_STATIC_DEFINE"
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
-  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:Threads::Threads>;\$<LINK_ONLY:rt>"
 )
 
 # Create imported target benchmark::benchmark_main
-add_library(benchmark::benchmark_main STATIC IMPORTED)
+add_library(benchmark::benchmark_main SHARED IMPORTED)
 
 set_target_properties(benchmark::benchmark_main PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"

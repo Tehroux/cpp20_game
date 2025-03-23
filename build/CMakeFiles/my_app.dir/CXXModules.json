@@ -15,6 +15,11 @@
 		{
 			"bmi" : "/home/tehroux/MyProject/build/CMakeFiles/my_app.dir/sprite.pcm",
 			"is-private" : true
+		},
+		"tile" : 
+		{
+			"bmi" : "/home/tehroux/MyProject/build/CMakeFiles/my_app.dir/tile.pcm",
+			"is-private" : true
 		}
 	},
 	"references" : 
@@ -33,6 +38,11 @@
 		{
 			"lookup-method" : "by-name",
 			"path" : "CMakeFiles/my_app.dir/sprite.pcm"
+		},
+		"tile" : 
+		{
+			"lookup-method" : "by-name",
+			"path" : "CMakeFiles/my_app.dir/tile.pcm"
 		}
 	},
 	"usages" : 

@@ -59,6 +59,7 @@ public:
   auto renderCharacterSelector();
   auto processEvent();
   auto loadCharacters() -> void;
+  auto loadEnemies() -> void;
 
   auto frame() -> void;
 
@@ -75,12 +76,16 @@ private:
   Uint32 last;
 
   std::vector<CharacterSprite> characters;
+  std::vector<CharacterSprite> enemies;
   size_t characterIndex;
+  size_t enemyIndex;
+  bool checkBoxRuning;
 };
 
 Gui::Gui()
     : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
-      texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0} {
+      texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
+      enemyIndex{0}, checkBoxRuning{false} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
@@ -115,6 +120,7 @@ Gui::Gui()
   texture = load_texture(
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
   loadCharacters();
+  loadEnemies();
 }
 
 Gui::~Gui() {
@@ -125,16 +131,24 @@ Gui::~Gui() {
 }
 
 auto Gui::loadCharacters() -> void {
-  characters.emplace_back("knight f", 128, 68, 28, 16);
-  characters.emplace_back("elve f", 128, 4, 28, 16);
-  characters.emplace_back("wizard f", 128, 132, 28, 16);
-  characters.emplace_back("dwarf f", 128,260, 28, 16);
-  characters.emplace_back("lizard f", 128, 196, 28, 16);
-  characters.emplace_back("knight m", 128, 100, 28, 16);
-  characters.emplace_back("elve m", 128, 4, 36, 16);
-  characters.emplace_back("wizard m", 128, 164, 28, 16);
-  characters.emplace_back("dwarf m", 128,292, 28, 16);
-  characters.emplace_back("lizard m", 128, 228, 28, 16);
+  characters.emplace_back("knight f", 128, 68, 28, 16, true, true);
+  characters.emplace_back("elve f", 128, 4, 28, 16, true, true);
+  characters.emplace_back("wizard f", 128, 132, 28, 16, true, true);
+  characters.emplace_back("dwarf f", 128, 260, 28, 16, true, true);
+  characters.emplace_back("lizard f", 128, 196, 28, 16, true, true);
+  characters.emplace_back("knight m", 128, 100, 28, 16, true, true);
+  characters.emplace_back("elve m", 128, 4, 36, 16, true, true);
+  characters.emplace_back("wizard m", 128, 164, 28, 16, true, true);
+  characters.emplace_back("dwarf m", 128, 292, 28, 16, true, true);
+  characters.emplace_back("lizard m", 128, 228, 28, 16, true, true);
+}
+
+auto Gui::loadEnemies() -> void {
+  enemies.emplace_back("imp", 368, 64, 16, 16, true, false);
+  enemies.emplace_back("wogol", 368, 249, 23, 16, true, false);
+  enemies.emplace_back("skeleton", 368, 88, 16, 16, true, false);
+  enemies.emplace_back("chort", 368, 273, 23, 16, true, false);
+  enemies.emplace_back("doc", 368, 345, 23, 16, true, false);
 }
 
 auto Gui::processEvent() {
@@ -162,16 +176,35 @@ auto Gui::processEvent() {
 
 auto Gui::renderCharacterSelector() {
   ImGui::Begin("Character Selector");
-  if (ImGui::BeginCombo("Character Selector", characters[characterIndex].name().c_str())) {
+  if (ImGui::BeginCombo("Character Selector",
+                        characters[characterIndex].name().c_str())) {
     for (auto i = 0; i < characters.size(); ++i) {
       if (ImGui::Selectable(characters[i].name().c_str(), characterIndex == i))
         characterIndex = i;
 
-      if (characterIndex ==i)
+      if (characterIndex == i)
         ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
+  if (ImGui::BeginCombo("Enemy Selector", enemies[enemyIndex].name().c_str())) {
+    for (auto i = 0; i < enemies.size(); ++i) {
+      if (ImGui::Selectable(enemies[i].name().c_str(), characterIndex == i))
+        enemyIndex = i;
+
+      if (enemyIndex == i)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+
+  if (ImGui::Checkbox("runing", &checkBoxRuning)) {
+    if (checkBoxRuning)
+      enemies[enemyIndex].setRunning(false);
+    else
+      enemies[enemyIndex].setIdle();
+  }
+
   ImGui::End();
 }
 
@@ -204,7 +237,13 @@ auto Gui::frame() -> void {
   SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
 
-  characters[characterIndex].render(renderer, texture, 100, 100, frameCount);
+  int winHeight{0};
+  SDL_GetWindowSize(window.get(), NULL, &winHeight);
+
+  characters[characterIndex].render(renderer, texture, 100, 100, frameCount,
+                                    winHeight);
+  enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount,
+                             winHeight);
 
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
   SDL_RenderPresent(renderer);

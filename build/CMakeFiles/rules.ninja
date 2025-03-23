@@ -174,12 +174,20 @@ rule CXX_COMPILER__benchmark_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__benchmark_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__benchmark_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
+
+
+#############################################
+# Rule for creating library symlink.
+
+rule CMAKE_SYMLINK_LIBRARY
+  command = /usr/bin/cmake -E cmake_symlink_library $in $SONAME $out && $POST_BUILD
+  description = Creating library symlink $out
 
 
 #############################################
@@ -193,11 +201,11 @@ rule CXX_COMPILER__benchmark_main_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__benchmark_main_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__benchmark_main_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
 
 
@@ -212,11 +220,11 @@ rule CXX_COMPILER__gmock_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__gmock_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__gmock_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
 
 
@@ -231,11 +239,11 @@ rule CXX_COMPILER__gmock_main_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__gmock_main_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__gmock_main_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
 
 
@@ -250,11 +258,11 @@ rule CXX_COMPILER__gtest_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__gtest_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__gtest_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
 
 
@@ -269,11 +277,11 @@ rule CXX_COMPILER__gtest_main_unscanned_
 
 
 #############################################
-# Rule for linking CXX static library.
+# Rule for linking CXX shared library.
 
-rule CXX_STATIC_LIBRARY_LINKER__gtest_main_
-  command = $PRE_LINK && /usr/bin/cmake -E rm -f $TARGET_FILE && /usr/bin/ar qc $TARGET_FILE $LINK_FLAGS $in && /usr/bin/ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking CXX static library $TARGET_FILE
+rule CXX_SHARED_LIBRARY_LINKER__gtest_main_
+  command = $PRE_LINK && /usr/bin/c++ -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
+  description = Linking CXX shared library $TARGET_FILE
   restat = $RESTAT
 
 
@@ -1130,14 +1138,6 @@ rule C_SHARED_LIBRARY_LINKER__SDL3-shared_
   command = $PRE_LINK && /usr/bin/cc -fPIC $LANGUAGE_COMPILE_FLAGS $ARCH_FLAGS $LINK_FLAGS -shared $SONAME_FLAG$SONAME -o $TARGET_FILE $in $LINK_PATH $LINK_LIBRARIES && $POST_BUILD
   description = Linking C shared library $TARGET_FILE
   restat = $RESTAT
-
-
-#############################################
-# Rule for creating library symlink.
-
-rule CMAKE_SYMLINK_LIBRARY
-  command = /usr/bin/cmake -E cmake_symlink_library $in $SONAME $out && $POST_BUILD
-  description = Creating library symlink $out
 
 
 #############################################

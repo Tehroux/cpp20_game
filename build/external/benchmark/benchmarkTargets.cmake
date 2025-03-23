@@ -47,16 +47,14 @@ unset(_cmake_expected_targets)
 
 
 # Create imported target benchmark::benchmark
-add_library(benchmark::benchmark STATIC IMPORTED)
+add_library(benchmark::benchmark SHARED IMPORTED)
 
 set_target_properties(benchmark::benchmark PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "BENCHMARK_STATIC_DEFINE"
   INTERFACE_INCLUDE_DIRECTORIES "/home/tehroux/MyProject/external/benchmark/include"
-  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:Threads::Threads>;\$<LINK_ONLY:rt>"
 )
 
 # Create imported target benchmark::benchmark_main
-add_library(benchmark::benchmark_main STATIC IMPORTED)
+add_library(benchmark::benchmark_main SHARED IMPORTED)
 
 set_target_properties(benchmark::benchmark_main PROPERTIES
   INTERFACE_LINK_LIBRARIES "benchmark::benchmark"
@@ -65,15 +63,15 @@ set_target_properties(benchmark::benchmark_main PROPERTIES
 # Import target "benchmark::benchmark" for configuration ""
 set_property(TARGET benchmark::benchmark APPEND PROPERTY IMPORTED_CONFIGURATIONS NOCONFIG)
 set_target_properties(benchmark::benchmark PROPERTIES
-  IMPORTED_LINK_INTERFACE_LANGUAGES_NOCONFIG "CXX"
-  IMPORTED_LOCATION_NOCONFIG "/home/tehroux/MyProject/build/external/benchmark/src/libbenchmark.a"
+  IMPORTED_LOCATION_NOCONFIG "/home/tehroux/MyProject/build/libbenchmark.so.1.9.1.45"
+  IMPORTED_SONAME_NOCONFIG "libbenchmark.so.1"
   )
 
 # Import target "benchmark::benchmark_main" for configuration ""
 set_property(TARGET benchmark::benchmark_main APPEND PROPERTY IMPORTED_CONFIGURATIONS NOCONFIG)
 set_target_properties(benchmark::benchmark_main PROPERTIES
-  IMPORTED_LINK_INTERFACE_LANGUAGES_NOCONFIG "CXX"
-  IMPORTED_LOCATION_NOCONFIG "/home/tehroux/MyProject/build/external/benchmark/src/libbenchmark_main.a"
+  IMPORTED_LOCATION_NOCONFIG "/home/tehroux/MyProject/build/libbenchmark_main.so.1.9.1.45"
+  IMPORTED_SONAME_NOCONFIG "libbenchmark_main.so.1"
   )
 
 # This file does not depend on other imported targets which have
