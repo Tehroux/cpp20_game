@@ -15,11 +15,15 @@ module;
 #include <SDL3_image/SDL_image.h>
 
 #include <format>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
+
+#include <format>
+#include <iostream>
 
 export module gui;
 
@@ -63,6 +67,7 @@ public:
   auto loadCharacters() -> void;
   auto loadEnemies() -> void;
   auto loadTiles() -> void;
+  auto showMap() -> void;
 
   auto frame() -> void;
 
@@ -81,18 +86,20 @@ private:
   std::vector<CharacterSprite> characters;
   std::vector<CharacterSprite> enemies;
   std::vector<std::variant<Tile>> tiles;
-
+  std::vector<std::vector<std::size_t>> map;
+  std::vector<std::vector<std::size_t>> mapWall;
 
   size_t characterIndex;
   size_t enemyIndex;
   size_t tileIndex;
   bool checkBoxRuning;
+  bool checkBoxWall;
 };
 
 Gui::Gui()
     : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
       texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
-      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false} {
+      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{0} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
@@ -129,6 +136,16 @@ Gui::Gui()
   loadCharacters();
   loadEnemies();
   loadTiles();
+
+  map.resize(15);
+  for (auto &e : map) {
+    e.resize(10, std::numeric_limits<size_t>::max());
+  }
+
+  mapWall.resize(15);
+  for (auto &e : mapWall) {
+    e.resize(10, std::numeric_limits<size_t>::max());
+  }
 }
 
 Gui::~Gui() {
@@ -160,12 +177,13 @@ auto Gui::loadEnemies() -> void {
 }
 
 auto Gui::loadTiles() -> void {
-   tiles.emplace_back(Tile{"floor 1", 16, 64,16, 16});
-   tiles.emplace_back(Tile{"floor 2", 32, 64,16, 16});
-   tiles.emplace_back(Tile{"wall edge bottom left", 32, 168,16, 16});
-   tiles.emplace_back(Tile{"wall edge mid left", 32, 152,16, 16});
-   tiles.emplace_back(Tile{"wall edge top left", 31, 120,16, 16});
-   tiles.emplace_back(Tile{"wall edge tshape bottom right", 64, 152,16, 16});
+  tiles.emplace_back(Tile{"floor 1", 16, 64, 16, 16});
+  tiles.emplace_back(Tile{"floor 2", 32, 64, 16, 16});
+  tiles.emplace_back(Tile{"wall edge bottom left", 32, 168, 16, 16});
+  tiles.emplace_back(Tile{"wall edge left", 32, 136, 16, 16});
+  tiles.emplace_back(Tile{"wall edge mid left", 32, 152, 16, 16});
+  tiles.emplace_back(Tile{"wall edge top left", 31, 120, 16, 16});
+  tiles.emplace_back(Tile{"wall edge tshape bottom right", 64, 152, 16, 16});
 }
 
 auto Gui::processEvent() {
@@ -177,6 +195,30 @@ auto Gui::processEvent() {
     if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
         event.window.windowID == SDL_GetWindowID(window.get()))
       _done = true;
+
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+        event.button.button == SDL_BUTTON_LEFT) {
+      size_t x = event.button.x / 32;
+      size_t y = event.button.y / 32;
+      if (x < map.size() && y < map[x].size()) {
+        if (checkBoxWall)
+          mapWall[x][y] = tileIndex;
+        else
+          map[x][y] = tileIndex;
+      }
+    }
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+        event.button.button == SDL_BUTTON_RIGHT) {
+      size_t x = event.button.x / 32;
+      size_t y = event.button.y / 32;
+      if (x < map.size() && y < map[x].size()) {
+        if (checkBoxWall)
+          mapWall[x][y] = std::numeric_limits<size_t>::max();
+        else
+          map[x][y] = std::numeric_limits<size_t>::max();
+      }
+    }
+
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_A) {
       characters[characterIndex].setHit();
     } else if (event.type == SDL_EVENT_KEY_DOWN &&
@@ -222,22 +264,27 @@ auto Gui::renderCharacterSelector() {
       enemies[enemyIndex].setIdle();
   }
 
-  std::visit([this](auto &tile){
-  if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
-    for (auto i = 0; i < tiles.size(); ++i) {
-      std::visit([this, i](auto &tile){
-      if (ImGui::Selectable(tile.name().c_str(), tileIndex == i))
-        tileIndex = i;
-      }, tiles[i]);
+  std::visit(
+      [this](auto &tile) {
+        if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
+          for (auto i = 0; i < tiles.size(); ++i) {
+            std::visit(
+                [this, i](auto &tile) {
+                  if (ImGui::Selectable(tile.name().c_str(), tileIndex == i))
+                    tileIndex = i;
+                },
+                tiles[i]);
 
-      if (tileIndex == i)
-        ImGui::SetItemDefaultFocus();
-    }
-    ImGui::EndCombo();
-  }
-  }, tiles[tileIndex]);
+            if (tileIndex == i)
+              ImGui::SetItemDefaultFocus();
+          }
+          ImGui::EndCombo();
+        }
+      },
+      tiles[tileIndex]);
+    ImGui::Checkbox("wall", &checkBoxWall);
 
-  ImGui::End();
+    ImGui::End();
 }
 
 auto Gui::frame() -> void {
@@ -277,7 +324,7 @@ auto Gui::frame() -> void {
   enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount,
                              winHeight);
 
-  std::visit([this](auto &tile){tile.render(renderer, texture, 100, 200);}, tiles[tileIndex]);
+  showMap();
 
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
   SDL_RenderPresent(renderer);
@@ -304,4 +351,30 @@ auto Gui::load_texture(std::string_view path) -> SdlTexturePtr {
 
   SDL_SetTextureScaleMode(texture.get(), SDL_SCALEMODE_NEAREST);
   return texture;
+}
+
+auto Gui::showMap() -> void {
+  for (auto i = 0; i < map.size(); ++i) {
+    for (auto j = 0; j < map[i].size(); ++j) {
+      if (map[i][j] >= tiles.size())
+        continue;
+      std::visit(
+          [this, i, j](auto &tile) {
+            tile.render(renderer, texture, i * 32, j * 32);
+          },
+          tiles[map[i][j]]);
+    }
+  }
+
+  for (auto i = 0; i < mapWall.size(); ++i) {
+    for (auto j = 0; j < mapWall[i].size(); ++j) {
+      if (mapWall[i][j] >= tiles.size())
+        continue;
+      std::visit(
+          [this, i, j](auto &tile) {
+            tile.render(renderer, texture, i * 32, j * 32);
+          },
+          tiles[mapWall[i][j]]);
+    }
+  }
 }
