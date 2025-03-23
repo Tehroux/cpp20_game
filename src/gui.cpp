@@ -18,11 +18,13 @@ module;
 #include <memory>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 export module gui;
 
 import sprite;
+import tile;
 
 using SdlSurfacePtr = std::unique_ptr<SDL_Surface, void (*)(SDL_Surface *)>;
 using SdlWindowPtr = std::unique_ptr<SDL_Window, void (*)(SDL_Window *)>;
@@ -60,6 +62,7 @@ public:
   auto processEvent();
   auto loadCharacters() -> void;
   auto loadEnemies() -> void;
+  auto loadTiles() -> void;
 
   auto frame() -> void;
 
@@ -77,15 +80,19 @@ private:
 
   std::vector<CharacterSprite> characters;
   std::vector<CharacterSprite> enemies;
+  std::vector<std::variant<Tile>> tiles;
+
+
   size_t characterIndex;
   size_t enemyIndex;
+  size_t tileIndex;
   bool checkBoxRuning;
 };
 
 Gui::Gui()
     : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
       texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
-      enemyIndex{0}, checkBoxRuning{false} {
+      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
@@ -121,6 +128,7 @@ Gui::Gui()
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
   loadCharacters();
   loadEnemies();
+  loadTiles();
 }
 
 Gui::~Gui() {
@@ -149,6 +157,15 @@ auto Gui::loadEnemies() -> void {
   enemies.emplace_back("skeleton", 368, 88, 16, 16, true, false);
   enemies.emplace_back("chort", 368, 273, 23, 16, true, false);
   enemies.emplace_back("doc", 368, 345, 23, 16, true, false);
+}
+
+auto Gui::loadTiles() -> void {
+   tiles.emplace_back(Tile{"floor 1", 16, 64,16, 16});
+   tiles.emplace_back(Tile{"floor 2", 32, 64,16, 16});
+   tiles.emplace_back(Tile{"wall edge bottom left", 32, 168,16, 16});
+   tiles.emplace_back(Tile{"wall edge mid left", 32, 152,16, 16});
+   tiles.emplace_back(Tile{"wall edge top left", 31, 120,16, 16});
+   tiles.emplace_back(Tile{"wall edge tshape bottom right", 64, 152,16, 16});
 }
 
 auto Gui::processEvent() {
@@ -198,12 +215,27 @@ auto Gui::renderCharacterSelector() {
     ImGui::EndCombo();
   }
 
-  if (ImGui::Checkbox("runing", &checkBoxRuning)) {
+  if (ImGui::Checkbox("running", &checkBoxRuning)) {
     if (checkBoxRuning)
       enemies[enemyIndex].setRunning(false);
     else
       enemies[enemyIndex].setIdle();
   }
+
+  std::visit([this](auto &tile){
+  if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
+    for (auto i = 0; i < tiles.size(); ++i) {
+      std::visit([this, i](auto &tile){
+      if (ImGui::Selectable(tile.name().c_str(), tileIndex == i))
+        tileIndex = i;
+      }, tiles[i]);
+
+      if (tileIndex == i)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+  }, tiles[tileIndex]);
 
   ImGui::End();
 }
@@ -244,6 +276,8 @@ auto Gui::frame() -> void {
                                     winHeight);
   enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount,
                              winHeight);
+
+  std::visit([this](auto &tile){tile.render(renderer, texture, 100, 200);}, tiles[tileIndex]);
 
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
   SDL_RenderPresent(renderer);
