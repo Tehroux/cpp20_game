@@ -6,6 +6,8 @@ module;
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 
+#include <SDL3_image/SDL_image.h>
+
 export module sprite;
 
 export using SdlTexturePtr =
@@ -93,7 +95,7 @@ auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
   if (frameCount % 2 == 0)
     incIndex();
 
-  SDL_FRect destRect = getDestRect(x, winHeight - (y + _h)*2);
+  SDL_FRect destRect = getDestRect(x, winHeight - (y + _h) * 2);
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 

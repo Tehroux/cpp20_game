@@ -15,15 +15,14 @@ module;
 #include <SDL3_image/SDL_image.h>
 
 #include <format>
+#include <fstream>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
-
-#include <format>
-#include <iostream>
 
 export module gui;
 
@@ -64,9 +63,9 @@ public:
   auto load_texture(std::string_view path) -> SdlTexturePtr;
   auto renderCharacterSelector();
   auto processEvent();
-  auto loadCharacters() -> void;
-  auto loadEnemies() -> void;
-  auto loadTiles() -> void;
+
+  auto loadEntities() -> void;
+
   auto showMap() -> void;
 
   auto frame() -> void;
@@ -85,7 +84,7 @@ private:
 
   std::vector<CharacterSprite> characters;
   std::vector<CharacterSprite> enemies;
-  std::vector<std::variant<Tile>> tiles;
+  std::vector<std::variant<Tile, AnimatedTile>> tiles;
   std::vector<std::vector<std::size_t>> map;
   std::vector<std::vector<std::size_t>> mapWall;
 
@@ -103,8 +102,7 @@ Gui::Gui()
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
-  static constexpr Uint32 window_flags =
-      SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
+  static constexpr Uint32 window_flags = SDL_WINDOW_HIDDEN;
 
   window = {SDL_CreateWindow("My app", 1280, 720, window_flags),
             SDL_DestroyWindow};
@@ -133,9 +131,8 @@ Gui::Gui()
 
   texture = load_texture(
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
-  loadCharacters();
-  loadEnemies();
-  loadTiles();
+
+  loadEntities();
 
   map.resize(15);
   for (auto &e : map) {
@@ -155,35 +152,41 @@ Gui::~Gui() {
   SDL_Quit();
 }
 
-auto Gui::loadCharacters() -> void {
-  characters.emplace_back("knight f", 128, 68, 28, 16, true, true);
-  characters.emplace_back("elve f", 128, 4, 28, 16, true, true);
-  characters.emplace_back("wizard f", 128, 132, 28, 16, true, true);
-  characters.emplace_back("dwarf f", 128, 260, 28, 16, true, true);
-  characters.emplace_back("lizard f", 128, 196, 28, 16, true, true);
-  characters.emplace_back("knight m", 128, 100, 28, 16, true, true);
-  characters.emplace_back("elve m", 128, 4, 36, 16, true, true);
-  characters.emplace_back("wizard m", 128, 164, 28, 16, true, true);
-  characters.emplace_back("dwarf m", 128, 292, 28, 16, true, true);
-  characters.emplace_back("lizard m", 128, 228, 28, 16, true, true);
-}
-
-auto Gui::loadEnemies() -> void {
-  enemies.emplace_back("imp", 368, 64, 16, 16, true, false);
-  enemies.emplace_back("wogol", 368, 249, 23, 16, true, false);
-  enemies.emplace_back("skeleton", 368, 88, 16, 16, true, false);
-  enemies.emplace_back("chort", 368, 273, 23, 16, true, false);
-  enemies.emplace_back("doc", 368, 345, 23, 16, true, false);
-}
-
-auto Gui::loadTiles() -> void {
-  tiles.emplace_back(Tile{"floor 1", 16, 64, 16, 16});
-  tiles.emplace_back(Tile{"floor 2", 32, 64, 16, 16});
-  tiles.emplace_back(Tile{"wall edge bottom left", 32, 168, 16, 16});
-  tiles.emplace_back(Tile{"wall edge left", 32, 136, 16, 16});
-  tiles.emplace_back(Tile{"wall edge mid left", 32, 152, 16, 16});
-  tiles.emplace_back(Tile{"wall edge top left", 31, 120, 16, 16});
-  tiles.emplace_back(Tile{"wall edge tshape bottom right", 64, 152, 16, 16});
+auto Gui::loadEntities() -> void {
+  std::ifstream textureIndex;
+  textureIndex.open("rsrc/0x72_DungeonTilesetII_v1.7/tile_list_v1.7.cpy");
+  while (!textureIndex.eof()) {
+    std::string s;
+    textureIndex >> s;
+    if (s == "terrain") {
+      std::string name;
+      unsigned int x, y, h, w;
+      textureIndex >> name >> x >> y >> w >> h;
+      tiles.emplace_back(Tile{name, x, y, w, h});
+    } else if (s == "terrainA") {
+      std::string name;
+      unsigned int x, y, h, w;
+      textureIndex >> name >> x >> y >> w >> h;
+      tiles.emplace_back(AnimatedTile{name, x, y, w, h});
+    } else if (s == "character") {
+      std::string name;
+      unsigned int x, y, h, w;
+      textureIndex >> name >> x >> y >> w >> h;
+      characters.emplace_back(name, x, y, h, w, true, true);
+    } else if (s == "enemy") {
+      std::string name;
+      unsigned int x, y, h, w;
+      textureIndex >> name >> x >> y >> w >> h;
+      enemies.emplace_back(name, x, y, h, w, true, false);
+    } else if (s == "enemyw") {
+      std::string name;
+      unsigned int x, y, h, w;
+      textureIndex >> name >> x >> y >> w >> h;
+      enemies.emplace_back(name, x, y, h, w, false, false);
+    } else {
+      textureIndex.ignore();
+    }
+  }
 }
 
 auto Gui::processEvent() {
@@ -282,9 +285,9 @@ auto Gui::renderCharacterSelector() {
         }
       },
       tiles[tileIndex]);
-    ImGui::Checkbox("wall", &checkBoxWall);
+  ImGui::Checkbox("wall", &checkBoxWall);
 
-    ImGui::End();
+  ImGui::End();
 }
 
 auto Gui::frame() -> void {
@@ -360,7 +363,7 @@ auto Gui::showMap() -> void {
         continue;
       std::visit(
           [this, i, j](auto &tile) {
-            tile.render(renderer, texture, i * 32, j * 32);
+            tile.render(renderer, texture, i * 32, j * 32, frameCount);
           },
           tiles[map[i][j]]);
     }
@@ -372,7 +375,7 @@ auto Gui::showMap() -> void {
         continue;
       std::visit(
           [this, i, j](auto &tile) {
-            tile.render(renderer, texture, i * 32, j * 32);
+            tile.render(renderer, texture, i * 32, j * 32, frameCount);
           },
           tiles[mapWall[i][j]]);
     }

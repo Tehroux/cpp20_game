@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
+
+set(CMAKE_C_COMPILER "/usr/bin/clang-19")
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++-19")
+set(CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS "/usr/bin/clang-scan-deps-19")
+
 project(MyProject)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -27,6 +32,7 @@ add_subdirectory(external/benchmark EXCLUDE_FROM_ALL)
 add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(external/SDL_image EXCLUDE_FROM_ALL)
 add_subdirectory(external/entt EXCLUDE_FROM_ALL)
+
 
 add_executable(my_app src/main.cpp ${IMGUI_SRC})
 target_sources(my_app PRIVATE FILE_SET CXX_MODULES FILES src/gui.cpp src/tile.cpp src/sprite.cpp  src/board.cpp)
