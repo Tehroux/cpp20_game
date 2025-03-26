@@ -1,6 +1,5 @@
 import gui;
 
-
 auto main(int, char **) -> int {
   Gui g;
 

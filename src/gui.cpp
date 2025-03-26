@@ -94,12 +94,16 @@ private:
   size_t tileIndex;
   bool checkBoxRuning;
   bool checkBoxWall;
+  int tileX;
+  int tileY;
+  bool showTileSelector;
 };
 
 Gui::Gui()
     : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
       texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
-      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{0} {
+      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{0},
+      tileX{0}, tileY{0}, showTileSelector{false} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
@@ -148,32 +152,20 @@ auto Gui::loadEntities() -> void {
   textureIndex.open("rsrc/0x72_DungeonTilesetII_v1.7/tile_list_v1.7.cpy");
   while (!textureIndex.eof()) {
     std::string s;
-    textureIndex >> s;
+    std::string name;
+    SDL_FRect rect;
+    textureIndex >> s >> name >> rect.x >> rect.y >> rect.w >> rect.h;
+
     if (s == "terrain") {
-      std::string name;
-      unsigned int x, y, h, w;
-      textureIndex >> name >> x >> y >> w >> h;
-      tiles.emplace_back(Tile{name, false, x, y, w, h});
+      tiles.emplace_back(Tile{name, false, rect});
     } else if (s == "terrainA") {
-      std::string name;
-      unsigned int x, y, h, w;
-      textureIndex >> name >> x >> y >> w >> h;
-      tiles.emplace_back(Tile{name, true, x, y, w, h});
+      tiles.emplace_back(Tile{name, true, rect});
     } else if (s == "character") {
-      std::string name;
-      unsigned int x, y, h, w;
-      textureIndex >> name >> x >> y >> w >> h;
-      characters.emplace_back(name, x, y, h, w, true, true);
+      characters.emplace_back(name, rect, true, true);
     } else if (s == "enemy") {
-      std::string name;
-      unsigned int x, y, h, w;
-      textureIndex >> name >> x >> y >> w >> h;
-      enemies.emplace_back(name, x, y, h, w, true, false);
+      enemies.emplace_back(name, rect, true, false);
     } else if (s == "enemyw") {
-      std::string name;
-      unsigned int x, y, h, w;
-      textureIndex >> name >> x >> y >> w >> h;
-      enemies.emplace_back(name, x, y, h, w, false, false);
+      enemies.emplace_back(name, rect, false, false);
     } else {
       textureIndex.ignore();
     }
@@ -184,6 +176,21 @@ auto Gui::processEvent() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     ImGui_ImplSDL3_ProcessEvent(&event);
+
+    if (ImGui::GetIO().WantCaptureMouse) {
+      showTileSelector = false;
+      continue;
+    } else {
+      showTileSelector = true;
+    }
+
+    float mx, my;
+
+    SDL_GetMouseState(&mx, &my);
+
+    tileX = static_cast<int>(mx) - static_cast<int>(mx) % 32;
+    tileY = static_cast<int>(my) - static_cast<int>(my) % 32;
+
     if (event.type == SDL_EVENT_QUIT)
       _done = true;
     if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
@@ -197,10 +204,14 @@ auto Gui::processEvent() {
 
       auto tile = tiles[tileIndex];
       tile.setPos(x, y);
-      if (checkBoxWall)
+      if (checkBoxWall) {
+        std::erase_if(mapWall,
+                      [x, y](auto tile) { return tile.isSamePos(x, y); });
         mapWall.push_back(tile);
-      else
+      } else {
+        std::erase_if(map, [x, y](auto tile) { return tile.isSamePos(x, y); });
         map.push_back(tile);
+      }
     }
 
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
@@ -286,12 +297,11 @@ auto Gui::frame() -> void {
     return;
   }
 
-  processEvent();
-
   if (SDL_GetWindowFlags(window.get()) & SDL_WINDOW_MINIMIZED) {
     SDL_Delay(10);
     return;
   }
+  processEvent();
 
   ImGui_ImplSDLRenderer3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
@@ -302,13 +312,19 @@ auto Gui::frame() -> void {
   renderCharacterSelector();
 
   ImGui::Render();
-  SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 255);
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
 
   int winHeight{0};
   SDL_GetWindowSize(window.get(), NULL, &winHeight);
 
   showMap();
+
+  if (showTileSelector) {
+    SDL_FRect r{static_cast<float>(tileX), static_cast<float>(tileY), 32, 32};
+    SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
+    SDL_RenderRect(renderer, &r);
+  }
 
   characters[characterIndex].render(renderer, texture, 100, 100, frameCount,
                                     winHeight);

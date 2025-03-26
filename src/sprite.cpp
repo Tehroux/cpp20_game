@@ -15,8 +15,8 @@ export using SdlTexturePtr =
 
 export class CharacterSprite {
 public:
-  CharacterSprite(const std::string &name, size_t x, size_t y, size_t h,
-                  size_t w, bool canRun, bool cantHit);
+  CharacterSprite(const std::string &name, const SDL_FRect &rect, bool canRun,
+                  bool cantHit);
 
   auto name() -> const std::string & { return _name; }
 
@@ -24,7 +24,7 @@ public:
   auto getRunTextureRect() -> SDL_FRect;
   auto getHitTextureRect() -> SDL_FRect;
   auto getTextureRect() -> SDL_FRect;
-  auto getDestRect(int x, int y) -> SDL_FRect;
+  auto getDestRect(float x, float y) -> SDL_FRect;
 
   auto incIndex();
 
@@ -40,10 +40,7 @@ public:
 
 private:
   std::string _name;
-  size_t _x;
-  size_t _y;
-  size_t _h;
-  size_t _w;
+  SDL_FRect sourceRect_;
   size_t index;
   bool hit;
   bool running;
@@ -52,24 +49,25 @@ private:
   bool _canHit;
 };
 
-CharacterSprite::CharacterSprite(const std::string &name, size_t x, size_t y,
-                                 size_t h, size_t w, bool canRun, bool canHit)
-    : _name{name}, _x{x}, _y{y}, _h{h}, _w{w}, index{0}, hit{false},
-      running{false}, direction{false}, _canRun{canRun}, _canHit{canHit} {}
+CharacterSprite::CharacterSprite(const std::string &name, const SDL_FRect &rect,
+                                 bool canRun, bool canHit)
+    : _name{name}, sourceRect_{rect}, index{0}, hit{false}, running{false},
+      direction{false}, _canRun{canRun}, _canHit{canHit} {}
 
 auto CharacterSprite::getIdleTextureRect() -> SDL_FRect {
-  return {static_cast<float>(_x + index * _w), static_cast<float>(_y),
-          static_cast<float>(_w), static_cast<float>(_h)};
+  return {sourceRect_.x + index * sourceRect_.w, sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
 auto CharacterSprite::getRunTextureRect() -> SDL_FRect {
-  return {static_cast<float>(_x + (index + 4) * _w), static_cast<float>(_y),
-          static_cast<float>(_w), static_cast<float>(_h)};
+  return {sourceRect_.x + (index + 4)  * sourceRect_.w, sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
 auto CharacterSprite::getHitTextureRect() -> SDL_FRect {
-  return {static_cast<float>(_x + 8 * _w), static_cast<float>(_y),
-          static_cast<float>(_w), static_cast<float>(_h)};
+
+  return {sourceRect_.x + (index + 8)  * sourceRect_.w, sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
 auto CharacterSprite::getTextureRect() -> SDL_FRect {
@@ -83,9 +81,8 @@ auto CharacterSprite::getTextureRect() -> SDL_FRect {
   }
 }
 
-auto CharacterSprite::getDestRect(int x, int y) -> SDL_FRect {
-  return {static_cast<float>(x), static_cast<float>(y),
-          static_cast<float>(_w * 2), static_cast<float>(_h * 2)};
+auto CharacterSprite::getDestRect(float x, float y) -> SDL_FRect {
+  return {x, y, sourceRect_.w * 2, sourceRect_.h * 2};
 }
 
 auto CharacterSprite::incIndex() { index = ++index % 4; }
@@ -95,7 +92,7 @@ auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
   if (frameCount % 2 == 0)
     incIndex();
 
-  SDL_FRect destRect = getDestRect(x, winHeight - (y + _h) * 2);
+  SDL_FRect destRect = getDestRect(x, winHeight - (y + sourceRect_.h) * 2);
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 
