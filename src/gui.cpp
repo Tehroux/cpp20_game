@@ -6,6 +6,7 @@ module;
 #include <imgui.h>
 
 #include "SDL3/SDL_keycode.h"
+#include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
@@ -84,9 +85,9 @@ private:
 
   std::vector<CharacterSprite> characters;
   std::vector<CharacterSprite> enemies;
-  std::vector<std::variant<Tile, AnimatedTile>> tiles;
-  std::vector<std::vector<std::size_t>> map;
-  std::vector<std::vector<std::size_t>> mapWall;
+  std::vector<Tile> tiles;
+  std::vector<Tile> map;
+  std::vector<Tile> mapWall;
 
   size_t characterIndex;
   size_t enemyIndex;
@@ -133,16 +134,6 @@ Gui::Gui()
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
 
   loadEntities();
-
-  map.resize(15);
-  for (auto &e : map) {
-    e.resize(10, std::numeric_limits<size_t>::max());
-  }
-
-  mapWall.resize(15);
-  for (auto &e : mapWall) {
-    e.resize(10, std::numeric_limits<size_t>::max());
-  }
 }
 
 Gui::~Gui() {
@@ -162,12 +153,12 @@ auto Gui::loadEntities() -> void {
       std::string name;
       unsigned int x, y, h, w;
       textureIndex >> name >> x >> y >> w >> h;
-      tiles.emplace_back(Tile{name, x, y, w, h});
+      tiles.emplace_back(Tile{name, false, x, y, w, h});
     } else if (s == "terrainA") {
       std::string name;
       unsigned int x, y, h, w;
       textureIndex >> name >> x >> y >> w >> h;
-      tiles.emplace_back(AnimatedTile{name, x, y, w, h});
+      tiles.emplace_back(Tile{name, true, x, y, w, h});
     } else if (s == "character") {
       std::string name;
       unsigned int x, y, h, w;
@@ -201,25 +192,27 @@ auto Gui::processEvent() {
 
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
         event.button.button == SDL_BUTTON_LEFT) {
-      size_t x = event.button.x / 32;
-      size_t y = event.button.y / 32;
-      if (x < map.size() && y < map[x].size()) {
-        if (checkBoxWall)
-          mapWall[x][y] = tileIndex;
-        else
-          map[x][y] = tileIndex;
-      }
+      size_t x = (event.button.x) - static_cast<int>(event.button.x) % 32;
+      size_t y = (event.button.y) - static_cast<int>(event.button.y) % 32;
+
+      auto tile = tiles[tileIndex];
+      tile.setPos(x, y);
+      if (checkBoxWall)
+        mapWall.push_back(tile);
+      else
+        map.push_back(tile);
     }
+
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
         event.button.button == SDL_BUTTON_RIGHT) {
-      size_t x = event.button.x / 32;
-      size_t y = event.button.y / 32;
-      if (x < map.size() && y < map[x].size()) {
-        if (checkBoxWall)
-          mapWall[x][y] = std::numeric_limits<size_t>::max();
-        else
-          map[x][y] = std::numeric_limits<size_t>::max();
-      }
+      size_t x = (event.button.x) - static_cast<int>(event.button.x) % 32;
+      size_t y = (event.button.y) - static_cast<int>(event.button.y) % 32;
+
+      if (checkBoxWall)
+        std::erase_if(mapWall,
+                      [x, y](auto tile) { return tile.isSamePos(x, y); });
+      else
+        std::erase_if(map, [x, y](auto tile) { return tile.isSamePos(x, y); });
     }
 
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_A) {
@@ -267,24 +260,17 @@ auto Gui::renderCharacterSelector() {
       enemies[enemyIndex].setIdle();
   }
 
-  std::visit(
-      [this](auto &tile) {
-        if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
-          for (auto i = 0; i < tiles.size(); ++i) {
-            std::visit(
-                [this, i](auto &tile) {
-                  if (ImGui::Selectable(tile.name().c_str(), tileIndex == i))
-                    tileIndex = i;
-                },
-                tiles[i]);
+  auto tile = tiles[tileIndex];
+  if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
+    for (auto i = 0; i < tiles.size(); ++i) {
+      if (ImGui::Selectable(tiles[i].name().c_str(), tileIndex == i))
+        tileIndex = i;
 
-            if (tileIndex == i)
-              ImGui::SetItemDefaultFocus();
-          }
-          ImGui::EndCombo();
-        }
-      },
-      tiles[tileIndex]);
+      if (tileIndex == i)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
   ImGui::Checkbox("wall", &checkBoxWall);
 
   ImGui::End();
@@ -322,12 +308,12 @@ auto Gui::frame() -> void {
   int winHeight{0};
   SDL_GetWindowSize(window.get(), NULL, &winHeight);
 
+  showMap();
+
   characters[characterIndex].render(renderer, texture, 100, 100, frameCount,
                                     winHeight);
   enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount,
                              winHeight);
-
-  showMap();
 
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
   SDL_RenderPresent(renderer);
@@ -357,27 +343,12 @@ auto Gui::load_texture(std::string_view path) -> SdlTexturePtr {
 }
 
 auto Gui::showMap() -> void {
-  for (auto i = 0; i < map.size(); ++i) {
-    for (auto j = 0; j < map[i].size(); ++j) {
-      if (map[i][j] >= tiles.size())
-        continue;
-      std::visit(
-          [this, i, j](auto &tile) {
-            tile.render(renderer, texture, i * 32, j * 32, frameCount);
-          },
-          tiles[map[i][j]]);
-    }
+
+  for (auto &tile : map) {
+    tile.render(renderer, texture, frameCount);
   }
 
-  for (auto i = 0; i < mapWall.size(); ++i) {
-    for (auto j = 0; j < mapWall[i].size(); ++j) {
-      if (mapWall[i][j] >= tiles.size())
-        continue;
-      std::visit(
-          [this, i, j](auto &tile) {
-            tile.render(renderer, texture, i * 32, j * 32, frameCount);
-          },
-          tiles[mapWall[i][j]]);
-    }
+  for (auto &tile : mapWall) {
+    tile.render(renderer, texture, frameCount);
   }
 }
