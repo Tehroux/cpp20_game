@@ -15,6 +15,7 @@ module;
 
 #include <SDL3_image/SDL_image.h>
 
+#include <algorithm>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -94,6 +95,7 @@ private:
   size_t tileIndex;
   bool checkBoxRuning;
   bool checkBoxWall;
+  bool checkLevel;
   int tileX;
   int tileY;
   bool showTileSelector;
@@ -102,8 +104,8 @@ private:
 Gui::Gui()
     : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
       texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
-      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{0},
-      tileX{0}, tileY{0}, showTileSelector{false} {
+      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{false},
+      checkLevel{false}, tileX{0}, tileY{0}, showTileSelector{false} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
@@ -199,31 +201,36 @@ auto Gui::processEvent() {
 
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
         event.button.button == SDL_BUTTON_LEFT) {
-      size_t x = (event.button.x) - static_cast<int>(event.button.x) % 32;
-      size_t y = (event.button.y) - static_cast<int>(event.button.y) % 32;
+      SDL_FPoint point;
+      point.x = (event.button.x) - static_cast<int>(event.button.x) % 32;
+      point.y = (event.button.y) - static_cast<int>(event.button.y) % 32;
 
       auto tile = tiles[tileIndex];
-      tile.setPos(x, y);
+      tile.setPos(point);
       if (checkBoxWall) {
+        tile.setLevel(checkLevel);
         std::erase_if(mapWall,
-                      [x, y](auto tile) { return tile.isSamePos(x, y); });
+                      [point](auto tile) { return tile.isSamePos(point); });
         mapWall.push_back(tile);
       } else {
-        std::erase_if(map, [x, y](auto tile) { return tile.isSamePos(x, y); });
+        std::erase_if(map,
+                      [point](auto tile) { return tile.isSamePos(point); });
         map.push_back(tile);
       }
     }
 
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
         event.button.button == SDL_BUTTON_RIGHT) {
-      size_t x = (event.button.x) - static_cast<int>(event.button.x) % 32;
-      size_t y = (event.button.y) - static_cast<int>(event.button.y) % 32;
+      SDL_FPoint point;
+      point.x = (event.button.x) - static_cast<int>(event.button.x) % 32;
+      point.y = (event.button.y) - static_cast<int>(event.button.y) % 32;
 
       if (checkBoxWall)
         std::erase_if(mapWall,
-                      [x, y](auto tile) { return tile.isSamePos(x, y); });
+                      [point](auto tile) { return tile.isSamePos(point); });
       else
-        std::erase_if(map, [x, y](auto tile) { return tile.isSamePos(x, y); });
+        std::erase_if(map,
+                      [point](auto tile) { return tile.isSamePos(point); });
     }
 
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_A) {
@@ -284,6 +291,63 @@ auto Gui::renderCharacterSelector() {
   }
   ImGui::Checkbox("wall", &checkBoxWall);
 
+  ImGui::Checkbox("Level", &checkLevel);
+
+  if (ImGui::Button("save")) {
+    std::fstream file;
+    file.open("test.lvl", std::ios::out | std::ios::trunc);
+
+    bool first = true;
+    for (auto &tile : map) {
+      if (!first)
+        file << '\n';
+      else
+        first = false;
+      file << tile;
+    }
+    if (!first)
+      file << '\n';
+    else
+      first = false;
+    file << "=====\n";
+    for (auto &tile : mapWall) {
+      if (!first)
+        file << '\n';
+      else
+        first = false;
+      file << tile;
+    }
+  }
+
+  if (ImGui::Button("load")) {
+    std::fstream file;
+    file.open("test.lvl", std::ios::in);
+    while (!file.eof()) {
+      Tile t;
+      file >> t;
+      file.ignore();
+      if (file.good()) {
+        map.push_back(t);
+      } else {
+        break;
+      }
+    }
+    file.clear();
+    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    while (!file.eof()) {
+      Tile t;
+      file >> t;
+      file.ignore();
+      if (file.good()) {
+
+        mapWall.push_back(t);
+      } else {
+        file.clear();
+        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      }
+    }
+  }
+
   ImGui::End();
 }
 
@@ -315,8 +379,8 @@ auto Gui::frame() -> void {
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
 
-  int winHeight{0};
-  SDL_GetWindowSize(window.get(), NULL, &winHeight);
+  std::sort(map.begin(), map.end());
+  std::sort(mapWall.begin(), mapWall.end());
 
   showMap();
 
@@ -326,10 +390,7 @@ auto Gui::frame() -> void {
     SDL_RenderRect(renderer, &r);
   }
 
-  characters[characterIndex].render(renderer, texture, 100, 100, frameCount,
-                                    winHeight);
-  enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount,
-                             winHeight);
+  enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount);
 
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
   SDL_RenderPresent(renderer);
@@ -364,7 +425,18 @@ auto Gui::showMap() -> void {
     tile.render(renderer, texture, frameCount);
   }
 
+  auto crendered = false;
   for (auto &tile : mapWall) {
+    if (!crendered && tile.getFlatenedPos().y > 108) {
+      crendered = true;
+      characters[characterIndex].render(renderer, texture, 100, 108,
+                                        frameCount);
+    }
     tile.render(renderer, texture, frameCount);
+  }
+
+  if (!crendered) {
+    crendered = true;
+    characters[characterIndex].render(renderer, texture, 100, 108, frameCount);
   }
 }

@@ -36,7 +36,7 @@ public:
   auto setIdle() { this->running = false; }
 
   auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, int x, int y,
-              size_t frameCount, int winHeight);
+              size_t frameCount);
 
 private:
   std::string _name;
@@ -88,11 +88,11 @@ auto CharacterSprite::getDestRect(float x, float y) -> SDL_FRect {
 auto CharacterSprite::incIndex() { index = ++index % 4; }
 
 auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                             int x, int y, size_t frameCount, int winHeight) {
+                             int x, int y, size_t frameCount) {
   if (frameCount % 2 == 0)
     incIndex();
 
-  SDL_FRect destRect = getDestRect(x, winHeight - (y + sourceRect_.h) * 2);
+  SDL_FRect destRect = getDestRect(x, y - sourceRect_.h * 2);
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 
