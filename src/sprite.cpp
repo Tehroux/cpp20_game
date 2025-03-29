@@ -2,6 +2,7 @@ module;
 
 #include <memory>
 #include <string>
+#include <iostream>
 
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
@@ -9,6 +10,8 @@ module;
 #include <SDL3_image/SDL_image.h>
 
 export module sprite;
+import tile;
+import sdlHelpers;
 
 export using SdlTexturePtr =
     std::unique_ptr<SDL_Texture, void (*)(SDL_Texture *)>;
@@ -47,6 +50,7 @@ private:
   bool direction;
   bool _canRun;
   bool _canHit;
+  int hitFrame = 0;
 };
 
 CharacterSprite::CharacterSprite(const std::string &name, const SDL_FRect &rect,
@@ -66,13 +70,17 @@ auto CharacterSprite::getRunTextureRect() -> SDL_FRect {
 
 auto CharacterSprite::getHitTextureRect() -> SDL_FRect {
 
-  return {sourceRect_.x + (index + 8)  * sourceRect_.w, sourceRect_.y, sourceRect_.w,
+  return {sourceRect_.x + 8  * sourceRect_.w, sourceRect_.y, sourceRect_.w,
           sourceRect_.h};
 }
 
 auto CharacterSprite::getTextureRect() -> SDL_FRect {
   if (_canHit && hit) {
-    hit = false;
+    if (++hitFrame == 2)
+    {
+      hitFrame = 0;
+      hit = false;
+    }
     return getHitTextureRect();
   } else if (_canRun && running) {
     return getRunTextureRect();

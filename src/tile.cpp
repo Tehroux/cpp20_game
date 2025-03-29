@@ -5,13 +5,18 @@ module;
 #include <memory>
 #include <stdint.h>
 #include <string>
-#include <variant>
 
 export module tile;
+import sdlHelpers;
 
-using SdlTexturePtr = std::unique_ptr<SDL_Texture, void (*)(SDL_Texture *)>;
+export template <class T>
+concept isRenderer =
+    requires(T t, SDL_Renderer *renderer, SdlTexturePtr &texture,
+             const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount) {
+      { t.render(renderer, texture, rect, pos, frameCount) };
+    };
 
-class StaticRenderer {
+export class StaticRenderer {
 public:
   auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
               const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount)
@@ -22,7 +27,7 @@ auto StaticRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
                             const SDL_FRect &rect, const SDL_FPoint &pos,
                             size_t frameCount) -> void {
 
-  SDL_FRect destRect{pos.x, pos.y, rect.w * 2, rect.h * 2};
+  SDL_FRect destRect{pos.x, pos.y - rect.h *2, rect.w * 2, rect.h * 2};
 
   SDL_RenderTexture(renderer, texture.get(), &rect, &destRect);
 }
@@ -32,7 +37,7 @@ std::ostream &operator<<(std::ostream &os, const StaticRenderer &) {
   return os;
 }
 
-class AnimatedRenderer {
+export class AnimatedRenderer {
 public:
   auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
               const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount)
@@ -57,103 +62,125 @@ auto AnimatedRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
     _index = ++_index % 3;
   }
 
-  SDL_FRect destRect{pos.x, pos.y, rect.w * 2, rect.h * 2};
+  SDL_FRect destRect{pos.x, pos.y - rect.h * 2, rect.w * 2, rect.h * 2};
 
   SDL_FRect sourceRect{rect.x + _index * rect.w, rect.y, rect.w, rect.h};
 
   SDL_RenderTexture(renderer, texture.get(), &sourceRect, &destRect);
 }
 
-export class Tile {
-  friend std::ostream &operator<<(std::ostream &os, const Tile &tile);
-  friend std::istream &operator>>(std::istream &is, Tile &tile);
-
+export class Renderable {
 public:
-  Tile() = default;
-  Tile(std::string name, bool animated, const SDL_FRect &rect);
+  Renderable(std::string name, const SDL_FRect &rect);
+  virtual ~Renderable() = default;
 
   auto name() -> const std::string & { return name_; }
 
   auto setPos(const SDL_FPoint &pos) { pos_ = pos; }
-  auto getPos() -> const SDL_FPoint & { return pos_; }
+  auto getPos() const -> SDL_FPoint  { return {pos_.x, pos_.y + (level_ ? sourceRect_.h * 2 : 0)} ; }
   auto setLevel(bool level) -> void { level_ = level; }
   auto getLevel() -> bool { return level_; }
-  auto getFlatenedPos() -> SDL_FPoint {
-    SDL_FPoint p = pos_;
-    p.y = p.y + sourceRect_.h * 2 + (level_ ? sourceRect_.h * 2: 0);
-    return p;
+  auto operator<(const Renderable &other) -> bool {
+    return getPos().y < other.getPos().y;
   }
 
   auto isSamePos(const SDL_FPoint &pos) -> bool {
     return pos_.x == pos.x && pos_.y == pos.y;
   }
 
-  auto operator<(const Tile &other) -> bool { return pos_.y < other.pos_.y; }
+  virtual auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+                      size_t frameCount) -> void = 0;
 
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
-      -> void;
+  virtual auto serialize(std::ostream &) -> void = 0;
 
-private:
+protected:
   std::string name_;
-
   SDL_FPoint pos_;
-
   SDL_FRect sourceRect_;
-  std::variant<StaticRenderer, AnimatedRenderer> renderer_;
   bool level_;
 };
 
-Tile::Tile(std::string name, bool animated, const SDL_FRect &rect)
-    : name_{name}, sourceRect_{rect}, level_{false} {
-  if (animated)
-    renderer_.emplace<AnimatedRenderer>();
-  else
-    renderer_.emplace<StaticRenderer>();
-}
-
-auto Tile::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                  size_t frameCount) -> void {
-  std::visit(
-      [this, renderer, &texture, frameCount](auto &r) {
-        r.render(renderer, texture, sourceRect_, pos_, frameCount);
-      },
-      renderer_);
-}
-
-std::ostream &operator<<(std::ostream &os, const SDL_FPoint &point) {
-  os << point.x << ' ' << point.y;
+export std::ostream &operator<<(std::ostream &os, Renderable &r) {
+  r.serialize(os);
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, const SDL_FRect &rect) {
-  os << rect.x << ' ' << rect.y << ' ' << rect.w << ' ' << rect.h;
-  return os;
+Renderable::Renderable(std::string name, const SDL_FRect &rect)
+    : name_{name}, sourceRect_{rect}, level_{false} {}
+
+export template <class R>
+  requires isRenderer<R>
+class Tile : public Renderable {
+  friend std::ostream &operator<<(std::ostream &os, const Tile<R> &tile);
+  friend std::istream &operator>>(std::istream &is, Tile<R> &tile);
+
+public:
+  Tile() = default;
+  Tile(std::string name, const SDL_FRect &rect);
+
+  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
+      -> void override;
+
+  virtual auto serialize(std::ostream &os) -> void override {
+    os << name_ << ' ' << renderer_ << ' ' << sourceRect_ << ' ' << pos_ << ' '
+       << level_;
+  }
+
+private:
+  R renderer_;
+};
+
+template <class R>
+  requires isRenderer<R>
+Tile<R>::Tile(std::string name, const SDL_FRect &rect)
+    : Renderable{name, rect} {}
+
+template <class R>
+  requires isRenderer<R>
+auto Tile<R>::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+                     size_t frameCount) -> void {
+  renderer_.render(renderer, texture, sourceRect_, pos_, frameCount);
 }
 
-std::istream &operator>>(std::istream &is, SDL_FPoint &point) {
-  is >> point.x >> point.y;
-  return is;
-}
+export class RendererBuilder {
+  friend std::istream &operator>>(std::istream &is, RendererBuilder &builder);
 
-std::istream &operator>>(std::istream &is, SDL_FRect &rect) {
-  is >> rect.x >> rect.y >> rect.w >> rect.h;
-  return is;
-}
+public:
+  RendererBuilder() = default;
+  RendererBuilder(std::string_view name, bool animated,
+                  const SDL_FRect &sourceRect)
+      : name_{name}, sourceRect_{sourceRect}, isAnimated_{animated} {}
 
-export std::ostream &operator<<(std::ostream &os, const Tile &tile) {
-  std::visit(
-      [&os, &tile](const auto &r) {
-        os << tile.name_ << ' ' << tile.level_ << ' ' << r << ' ' << tile.pos_
-           << ' ' << tile.sourceRect_;
-      },
-      tile.renderer_);
-  return os;
-}
+  std::unique_ptr<Renderable> build() {
 
-export std::istream &operator>>(std::istream &is, Tile &tile) {
+    std::unique_ptr<Renderable> r;
+    if (isAnimated_)
+      r = std::make_unique<Tile<AnimatedRenderer>>(name_, sourceRect_);
+    else
+      r = std::make_unique<Tile<StaticRenderer>>(name_, sourceRect_);
+
+    r->setLevel(level_);
+    r->setPos(pos_);
+    return r;
+  }
+
+  auto name() -> const std::string & { return name_; }
+
+private:
+  std::string name_;
+  SDL_FRect sourceRect_;
+  bool isAnimated_;
+  SDL_FPoint pos_;
+  bool level_;
+};
+
+std::istream &operator>>(std::istream &is, RendererBuilder &builder) {
+
   auto g = is.tellg();
   std::string animated;
-  is >> tile.name_ >> tile.level_ >> animated >> tile.pos_ >> tile.sourceRect_;
+
+  is >> builder.name_ >> animated >> builder.sourceRect_ >> builder.pos_ >>
+      builder.level_;
 
   if (!is) {
     is.clear();
@@ -162,10 +189,7 @@ export std::istream &operator>>(std::istream &is, Tile &tile) {
     return is;
   }
 
-  if (animated == "animated")
-    tile.renderer_.emplace<AnimatedRenderer>();
-  else
-    tile.renderer_.emplace<StaticRenderer>();
+  builder.isAnimated_ = (animated == "animated");
 
   return is;
 }
