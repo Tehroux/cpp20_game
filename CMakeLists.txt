@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(CMAKE_C_COMPILER "/usr/bin/clang-19")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++-19")
-set(CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS "/usr/bin/clang-scan-deps-19")
+set(CMAKE_C_COMPILER "/usr/bin/clang-20")
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++-20")
+set(CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS "/usr/bin/clang-scan-deps-20")
 
 project(MyProject)
 
