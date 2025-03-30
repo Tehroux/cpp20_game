@@ -9,187 +9,194 @@ module;
 export module tile;
 import sdlHelpers;
 
-export template <class T>
+export template <class Type>
 concept isRenderer =
-    requires(T t, SDL_Renderer *renderer, SdlTexturePtr &texture,
-             const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount) {
-      { t.render(renderer, texture, rect, pos, frameCount) };
+    requires(Type T, SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+             const SDL_FRect &Rect, const SDL_FPoint &Pos, size_t FrameCount) {
+      { T.render(Renderer, Texture, Rect, Pos, FrameCount) };
     };
 
 export class StaticRenderer {
 public:
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-              const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount)
+  auto render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+              const SDL_FRect &Rect, const SDL_FPoint &Pos, size_t FrameCount)
       -> void;
 };
 
-auto StaticRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                            const SDL_FRect &rect, const SDL_FPoint &pos,
-                            size_t frameCount) -> void {
+auto StaticRenderer::render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+                            const SDL_FRect &Rect, const SDL_FPoint &Pos,
+                            size_t FrameCount) -> void {
 
-  SDL_FRect destRect{pos.x, pos.y - rect.h *2, rect.w * 2, rect.h * 2};
+  SDL_FRect DestRect{Pos.x, Pos.y - Rect.h * 2, Rect.w * 2, Rect.h * 2};
 
-  SDL_RenderTexture(renderer, texture.get(), &rect, &destRect);
+  SDL_RenderTexture(Renderer, Texture.get(), &Rect, &DestRect);
 }
 
-std::ostream &operator<<(std::ostream &os, const StaticRenderer &) {
-  os << "static";
-  return os;
+static std::ostream &operator<<(std::ostream &Os, const StaticRenderer &) {
+  Os << "static";
+  return Os;
 }
 
 export class AnimatedRenderer {
 public:
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-              const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount)
+  auto render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+              const SDL_FRect &Rect, const SDL_FPoint &Pos, size_t FrameCount)
       -> void;
 
 private:
-  size_t _index;
-  size_t _lastFrame;
+  size_t Index;
+  size_t LastFrame;
 };
 
-std::ostream &operator<<(std::ostream &os, const AnimatedRenderer &) {
-  os << "animated";
-  return os;
+static std::ostream &operator<<(std::ostream &Os, const AnimatedRenderer &) {
+  Os << "animated";
+  return Os;
 }
 
-auto AnimatedRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                              const SDL_FRect &rect, const SDL_FPoint &pos,
-                              size_t frameCount) -> void {
+auto AnimatedRenderer::render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+                              const SDL_FRect &Rect, const SDL_FPoint &Pos,
+                              size_t FrameCount) -> void {
 
-  if (_lastFrame != frameCount && frameCount % 2 == 0) {
-    _lastFrame = frameCount;
-    _index = ++_index % 3;
+  if (LastFrame != FrameCount && FrameCount % 2 == 0) {
+    LastFrame = FrameCount;
+    Index = ++Index % 3;
   }
 
-  SDL_FRect destRect{pos.x, pos.y - rect.h * 2, rect.w * 2, rect.h * 2};
+  SDL_FRect DestRect{Pos.x, Pos.y - Rect.h * 2, Rect.w * 2, Rect.h * 2};
 
-  SDL_FRect sourceRect{rect.x + _index * rect.w, rect.y, rect.w, rect.h};
+  SDL_FRect SourceRect{Rect.x + Index * Rect.w, Rect.y, Rect.w, Rect.h};
 
-  SDL_RenderTexture(renderer, texture.get(), &sourceRect, &destRect);
+  SDL_RenderTexture(Renderer, Texture.get(), &SourceRect, &DestRect);
 }
 
 export class Renderable {
 public:
-  Renderable(std::string name, const SDL_FRect &rect);
+  Renderable(std::string Name, const SDL_FRect &Rect);
   virtual ~Renderable() = default;
 
-  auto name() -> const std::string & { return name_; }
+  auto name() -> const std::string & { return RenderableName; }
 
-  auto setPos(const SDL_FPoint &pos) { pos_ = pos; }
-  auto getPos() const -> SDL_FPoint  { return {pos_.x, pos_.y + (level_ ? sourceRect_.h * 2 : 0)} ; }
-  auto setLevel(bool level) -> void { level_ = level; }
-  auto getLevel() -> bool { return level_; }
-  auto operator<(const Renderable &other) -> bool {
-    return getPos().y < other.getPos().y;
+  auto setPos(const SDL_FPoint &Pos) { RenderablePos = Pos; }
+  auto getPos() const -> SDL_FPoint {
+    return {RenderablePos.x,
+            RenderablePos.y + (RenderableLevel ? SourceRect.h * 2 : 0)};
+  }
+  auto setLevel(bool Level) -> void { RenderableLevel = Level; }
+  auto getLevel() -> bool { return RenderableLevel; }
+  auto operator<(const Renderable &Other) -> bool {
+    return getPos().y < Other.getPos().y;
   }
 
-  auto isSamePos(const SDL_FPoint &pos) -> bool {
-    return pos_.x == pos.x && pos_.y == pos.y;
+  auto isSamePos(const SDL_FPoint &Pos) -> bool {
+    return RenderablePos.x == Pos.x && RenderablePos.y == Pos.y;
   }
 
-  virtual auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                      size_t frameCount) -> void = 0;
+  virtual auto render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+                      size_t FrameCount) -> void = 0;
 
   virtual auto serialize(std::ostream &) -> void = 0;
 
 protected:
-  std::string name_;
-  SDL_FPoint pos_;
-  SDL_FRect sourceRect_;
-  bool level_;
+  std::string RenderableName;
+  SDL_FPoint RenderablePos;
+  SDL_FRect SourceRect;
+  bool RenderableLevel;
 };
 
-export std::ostream &operator<<(std::ostream &os, Renderable &r) {
-  r.serialize(os);
-  return os;
+export std::ostream &operator<<(std::ostream &Os, Renderable &R) {
+  R.serialize(Os);
+  return Os;
 }
 
-Renderable::Renderable(std::string name, const SDL_FRect &rect)
-    : name_{name}, sourceRect_{rect}, level_{false} {}
+Renderable::Renderable(std::string Name, const SDL_FRect &Rect)
+    : RenderableName{Name}, SourceRect{Rect}, RenderableLevel{false} {}
 
-export template <class R>
-  requires isRenderer<R>
+export template <class RendererType>
+  requires isRenderer<RendererType>
 class Tile : public Renderable {
-  friend std::ostream &operator<<(std::ostream &os, const Tile<R> &tile);
-  friend std::istream &operator>>(std::istream &is, Tile<R> &tile);
+  friend std::ostream &operator<<(std::ostream &Os,
+                                  const Tile<RendererType> &Tile);
+  friend std::istream &operator>>(std::istream &Is, Tile<RendererType> &Tile);
 
 public:
   Tile() = default;
-  Tile(std::string name, const SDL_FRect &rect);
+  Tile(std::string Name, const SDL_FRect &Rect);
 
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
+  auto render(SDL_Renderer *Renderer, SdlTexturePtr &Texture, size_t FrameCount)
       -> void override;
 
-  virtual auto serialize(std::ostream &os) -> void override {
-    os << name_ << ' ' << renderer_ << ' ' << sourceRect_ << ' ' << pos_ << ' '
-       << level_;
+  virtual auto serialize(std::ostream &Os) -> void override {
+    Os << RenderableName << ' ' << TileRenderer << ' ' << SourceRect << ' '
+       << RenderablePos << ' ' << RenderableLevel;
   }
 
 private:
-  R renderer_;
+  RendererType TileRenderer;
 };
 
 template <class R>
   requires isRenderer<R>
-Tile<R>::Tile(std::string name, const SDL_FRect &rect)
-    : Renderable{name, rect} {}
+Tile<R>::Tile(std::string Name, const SDL_FRect &Rect)
+    : Renderable{Name, Rect} {}
 
 template <class R>
   requires isRenderer<R>
-auto Tile<R>::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                     size_t frameCount) -> void {
-  renderer_.render(renderer, texture, sourceRect_, pos_, frameCount);
+auto Tile<R>::render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
+                     size_t FrameCount) -> void {
+  TileRenderer.render(Renderer, Texture, SourceRect, RenderablePos, FrameCount);
 }
 
 export class RendererBuilder {
-  friend std::istream &operator>>(std::istream &is, RendererBuilder &builder);
+  friend std::istream &operator>>(std::istream &Is, RendererBuilder &Builder);
 
 public:
   RendererBuilder() = default;
-  RendererBuilder(std::string_view name, bool animated,
-                  const SDL_FRect &sourceRect)
-      : name_{name}, sourceRect_{sourceRect}, isAnimated_{animated} {}
+  RendererBuilder(std::string_view Name, bool Animated,
+                  const SDL_FRect &SourceRect)
+      : RenderableName{Name}, RenderableSourceRect{SourceRect},
+        RenderableIsAnimated{Animated} {}
 
   std::unique_ptr<Renderable> build() {
 
-    std::unique_ptr<Renderable> r;
-    if (isAnimated_)
-      r = std::make_unique<Tile<AnimatedRenderer>>(name_, sourceRect_);
+    std::unique_ptr<Renderable> Renderable;
+    if (RenderableIsAnimated)
+      Renderable = std::make_unique<Tile<AnimatedRenderer>>(
+          RenderableName, RenderableSourceRect);
     else
-      r = std::make_unique<Tile<StaticRenderer>>(name_, sourceRect_);
+      Renderable = std::make_unique<Tile<StaticRenderer>>(RenderableName,
+                                                          RenderableSourceRect);
 
-    r->setLevel(level_);
-    r->setPos(pos_);
-    return r;
+    Renderable->setLevel(RenderableLevel);
+    Renderable->setPos(RenderablePos);
+    return Renderable;
   }
 
-  auto name() -> const std::string & { return name_; }
+  auto name() -> const std::string & { return RenderableName; }
 
 private:
-  std::string name_;
-  SDL_FRect sourceRect_;
-  bool isAnimated_;
-  SDL_FPoint pos_;
-  bool level_;
+  std::string RenderableName;
+  SDL_FRect RenderableSourceRect;
+  bool RenderableIsAnimated;
+  SDL_FPoint RenderablePos;
+  bool RenderableLevel;
 };
 
-std::istream &operator>>(std::istream &is, RendererBuilder &builder) {
+std::istream &operator>>(std::istream &Is, RendererBuilder &Builder) {
 
-  auto g = is.tellg();
-  std::string animated;
+  auto StreamPos = Is.tellg();
+  std::string Animated;
 
-  is >> builder.name_ >> animated >> builder.sourceRect_ >> builder.pos_ >>
-      builder.level_;
+  Is >> Builder.RenderableName >> Animated >> Builder.RenderableSourceRect >>
+      Builder.RenderablePos >> Builder.RenderableLevel;
 
-  if (!is) {
-    is.clear();
-    is.seekg(g);
-    is.setstate(std::ios_base::failbit);
-    return is;
+  if (!Is) {
+    Is.clear();
+    Is.seekg(StreamPos);
+    Is.setstate(std::ios_base::failbit);
+    return Is;
   }
 
-  builder.isAnimated_ = (animated == "animated");
+  Builder.RenderableIsAnimated = (Animated == "animated");
 
-  return is;
+  return Is;
 }

@@ -33,20 +33,21 @@ import sdlHelpers;
 
 class InitError : public std::exception {
 public:
-  InitError(std::string_view msg) : msg(msg) {}
-  const char *what() const noexcept override { return msg.c_str(); }
+  InitError(std::string_view ErrorMessage) : ErrorMessage(ErrorMessage) {}
+  const char *what() const noexcept override { return ErrorMessage.c_str(); }
 
 private:
-  const std::string msg;
+  const std::string ErrorMessage;
 };
 
 class TextureLoadingError : public std::exception {
 public:
-  TextureLoadingError(std::string_view msg) : msg(msg) {}
-  const char *what() const noexcept override { return msg.c_str(); }
+  TextureLoadingError(std::string_view ErrorMessage)
+      : ErrorMessage(ErrorMessage) {}
+  const char *what() const noexcept override { return ErrorMessage.c_str(); }
 
 private:
-  const std::string msg;
+  const std::string ErrorMessage;
 };
 
 export class Gui final {
@@ -59,11 +60,11 @@ public:
   Gui &operator=(const Gui &) = delete;
   Gui &operator=(Gui &&) = delete;
 
-  auto load_texture(std::string_view path) -> SdlTexturePtr;
+  auto loadTexture(std::string_view Path) -> SdlTexturePtr;
   auto renderCharacterSelector();
   auto processEvent();
-  auto processEventEditor(const SDL_Event &event) -> bool;
-  auto processEventCharacter(const SDL_Event &event) -> bool;
+  auto processEventEditor(const SDL_Event &Event) -> bool;
+  auto processEventCharacter(const SDL_Event &Event) -> bool;
 
   auto loadEntities() -> void;
 
@@ -71,73 +72,72 @@ public:
 
   auto frame() -> void;
 
-  auto done() const noexcept -> bool { return _done; }
+  auto done() const noexcept -> bool { return Done; }
 
 private:
-  SdlWindowPtr window;
-  bool _done;
+  SdlWindowPtr Window;
+  bool Done;
 
-  SDL_Renderer *renderer;
+  SDL_Renderer *Renderer;
 
-  size_t frameCount;
-  SdlTexturePtr texture;
-  Uint32 last;
+  size_t FrameCount;
+  SdlTexturePtr Texture;
+  Uint32 Last;
 
-  std::vector<CharacterSprite> characters;
-  std::vector<CharacterSprite> enemies;
-  std::vector<RendererBuilder> tiles;
-  std::vector<std::unique_ptr<Renderable>> map_;
-  std::vector<std::unique_ptr<Renderable>> mapWall_;
+  std::vector<CharacterSprite> Characters;
+  std::vector<CharacterSprite> Enemies;
+  std::vector<RendererBuilder> Tiles;
+  std::vector<std::unique_ptr<Renderable>> Map;
+  std::vector<std::unique_ptr<Renderable>> MapWall;
 
-  size_t characterIndex;
-  size_t enemyIndex;
-  size_t tileIndex;
-  bool checkBoxRuning;
-  bool checkBoxWall;
-  bool checkLevel;
-  bool checkEditor_;
-  int tileX;
-  int tileY;
-  bool showTileSelector;
+  size_t CharacterIndex;
+  size_t EnemyIndex;
+  size_t TileIndex;
+  bool CheckBoxRuning;
+  bool CheckBoxWall;
+  bool CheckLevel;
+  bool CheckEditor;
+  SDL_FPoint TileCursorPos;
+  bool ShowTileSelector;
 };
 
 Gui::Gui()
-    : window{nullptr, SDL_DestroyWindow}, _done{false}, frameCount{0},
-      texture{nullptr, SDL_DestroyTexture}, last{0}, characterIndex{0},
-      enemyIndex{0}, tileIndex{0}, checkBoxRuning{false}, checkBoxWall{false},
-      checkLevel{false}, checkEditor_{false}, tileX{0}, tileY{0},
-      showTileSelector{false} {
+    : Window{nullptr, SDL_DestroyWindow}, Done{false}, FrameCount{0},
+      Texture{nullptr, SDL_DestroyTexture}, Last{0}, CharacterIndex{0},
+      EnemyIndex{0}, TileIndex{0}, CheckBoxRuning{false}, CheckBoxWall{false},
+      CheckLevel{false}, CheckEditor{false}, TileCursorPos{0, 0},
+      ShowTileSelector{false} {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
 
-  static constexpr Uint32 window_flags = SDL_WINDOW_HIDDEN;
+  static constexpr Uint32 WindowFlags = SDL_WINDOW_HIDDEN;
 
-  window = {SDL_CreateWindow("My app", 1280, 720, window_flags),
+  Window = {SDL_CreateWindow("My app", 1280, 720, WindowFlags),
             SDL_DestroyWindow};
-  if (!window)
+  if (!Window)
     throw InitError{std::format("SDL_CreateWindow(): {}", SDL_GetError())};
 
-  renderer = SDL_CreateRenderer(window.get(), nullptr);
-  SDL_SetRenderVSync(renderer, 1);
-  if (renderer == nullptr)
+  Renderer = SDL_CreateRenderer(Window.get(), nullptr);
+  SDL_SetRenderVSync(Renderer, 1);
+  if (Renderer == nullptr)
     throw InitError{std::format("SDL_CreateRenderer(): {}", SDL_GetError())};
 
-  SDL_SetWindowPosition(window.get(), SDL_WINDOWPOS_CENTERED,
+  SDL_SetWindowPosition(Window.get(), SDL_WINDOWPOS_CENTERED,
                         SDL_WINDOWPOS_CENTERED);
-  SDL_ShowWindow(window.get());
+  SDL_ShowWindow(Window.get());
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  auto &io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  auto &Io = ImGui::GetIO();
+  Io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  Io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
   ImGui::StyleColorsDark();
 
-  ImGui_ImplSDL3_InitForSDLRenderer(window.get(), renderer);
-  ImGui_ImplSDLRenderer3_Init(renderer);
+  ImGui_ImplSDL3_InitForSDLRenderer(Window.get(), Renderer);
+  ImGui_ImplSDLRenderer3_Init(Renderer);
 
-  texture = load_texture(
+  Texture = loadTexture(
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
 
   loadEntities();
@@ -151,148 +151,152 @@ Gui::~Gui() {
 }
 
 auto Gui::loadEntities() -> void {
-  std::ifstream textureIndex;
-  textureIndex.open("rsrc/0x72_DungeonTilesetII_v1.7/tile_list_v1.7.cpy");
-  while (!textureIndex.eof()) {
-    std::string s;
-    std::string name;
-    SDL_FRect rect;
-    textureIndex >> s >> name >> rect.x >> rect.y >> rect.w >> rect.h;
+  std::ifstream TextureIndex;
+  TextureIndex.open("rsrc/0x72_DungeonTilesetII_v1.7/tile_list_v1.7.cpy");
+  while (!TextureIndex.eof()) {
+    std::string TileType;
+    std::string TileName;
+    SDL_FRect SourceRect;
+    TextureIndex >> TileType >> TileName >> SourceRect.x >> SourceRect.y >>
+        SourceRect.w >> SourceRect.h;
 
-    if (s == "terrain") {
-      tiles.emplace_back(name, false, rect);
-    } else if (s == "terrainA") {
-      tiles.emplace_back(name, true, rect);
-    } else if (s == "character") {
-      characters.emplace_back(name, rect, true, true);
-    } else if (s == "enemy") {
-      enemies.emplace_back(name, rect, true, false);
-    } else if (s == "enemyw") {
-      enemies.emplace_back(name, rect, false, false);
+    if (TileType == "terrain") {
+      Tiles.emplace_back(TileName, false, SourceRect);
+    } else if (TileType == "terrainA") {
+      Tiles.emplace_back(TileName, true, SourceRect);
+    } else if (TileType == "character") {
+      Characters.emplace_back(TileName, SourceRect, true, true);
+    } else if (TileType == "enemy") {
+      Enemies.emplace_back(TileName, SourceRect, true, false);
+    } else if (TileType == "enemyw") {
+      Enemies.emplace_back(TileName, SourceRect, false, false);
     } else {
-      textureIndex.ignore();
+      TextureIndex.ignore();
     }
   }
 }
 
 auto Gui::processEvent() {
-  SDL_Event event;
-  while (SDL_PollEvent(&event)) {
-    ImGui_ImplSDL3_ProcessEvent(&event);
+  SDL_Event Event;
+  while (SDL_PollEvent(&Event)) {
+    ImGui_ImplSDL3_ProcessEvent(&Event);
 
     if (ImGui::GetIO().WantCaptureMouse) {
-      showTileSelector = false;
+      ShowTileSelector = false;
       continue;
-    } else {
-      showTileSelector = true;
     }
+    ShowTileSelector = true;
 
-    float mx, my;
+    SDL_FPoint MousePos;
 
-    SDL_GetMouseState(&mx, &my);
+    SDL_GetMouseState(&MousePos.x, &MousePos.y);
 
-    tileX = static_cast<int>(mx) - static_cast<int>(mx) % 32;
-    tileY = static_cast<int>(my) - static_cast<int>(my) % 32;
+    TileCursorPos = {static_cast<float>(static_cast<int>(MousePos.x) -
+                                        static_cast<int>(MousePos.x) % 32),
+                     static_cast<float>(static_cast<int>(MousePos.y) -
+                                        static_cast<int>(MousePos.y) % 32)};
 
-    if (event.type == SDL_EVENT_QUIT)
-      _done = true;
-    if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-        event.window.windowID == SDL_GetWindowID(window.get()))
-      _done = true;
+    if (Event.type == SDL_EVENT_QUIT)
+      Done = true;
+    if (Event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+        Event.window.windowID == SDL_GetWindowID(Window.get()))
+      Done = true;
 
-    if (checkEditor_ && processEventEditor(event))
+    if (CheckEditor && processEventEditor(Event))
       return;
 
-    processEventCharacter(event);
+    processEventCharacter(Event);
   }
 }
 
 auto Gui::renderCharacterSelector() {
   ImGui::Begin("Character Selector");
   if (ImGui::BeginCombo("Character Selector",
-                        characters[characterIndex].name().c_str())) {
-    for (auto i = 0; i < characters.size(); ++i) {
-      if (ImGui::Selectable(characters[i].name().c_str(), characterIndex == i))
-        characterIndex = i;
+                        Characters[CharacterIndex].name().c_str())) {
+    for (auto Index = 0; Index < Characters.size(); ++Index) {
+      if (ImGui::Selectable(Characters[Index].name().c_str(),
+                            CharacterIndex == Index))
+        CharacterIndex = Index;
 
-      if (characterIndex == i)
+      if (CharacterIndex == Index)
         ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
-  if (ImGui::BeginCombo("Enemy Selector", enemies[enemyIndex].name().c_str())) {
-    for (auto i = 0; i < enemies.size(); ++i) {
-      if (ImGui::Selectable(enemies[i].name().c_str(), characterIndex == i))
-        enemyIndex = i;
+  if (ImGui::BeginCombo("Enemy Selector", Enemies[EnemyIndex].name().c_str())) {
+    for (auto Index = 0; Index < Enemies.size(); ++Index) {
+      if (ImGui::Selectable(Enemies[Index].name().c_str(),
+                            CharacterIndex == Index))
+        EnemyIndex = Index;
 
-      if (enemyIndex == i)
+      if (EnemyIndex == Index)
         ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
 
-  if (ImGui::Checkbox("running", &checkBoxRuning)) {
-    if (checkBoxRuning)
-      enemies[enemyIndex].setRunning(false);
+  if (ImGui::Checkbox("running", &CheckBoxRuning)) {
+    if (CheckBoxRuning)
+      Enemies[EnemyIndex].setRunning(false);
     else
-      enemies[enemyIndex].setIdle();
+      Enemies[EnemyIndex].setIdle();
   }
 
-  auto tile = tiles[tileIndex];
-  if (ImGui::BeginCombo("Tile Selector", tile.name().c_str())) {
-    for (auto i = 0; i < tiles.size(); ++i) {
-      if (ImGui::Selectable(tiles[i].name().c_str(), tileIndex == i))
-        tileIndex = i;
+  auto Tile = Tiles[TileIndex];
+  if (ImGui::BeginCombo("Tile Selector", Tile.name().c_str())) {
+    for (auto i = 0; i < Tiles.size(); ++i) {
+      if (ImGui::Selectable(Tiles[i].name().c_str(), TileIndex == i))
+        TileIndex = i;
 
-      if (tileIndex == i)
+      if (TileIndex == i)
         ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
-  ImGui::Checkbox("wall", &checkBoxWall);
+  ImGui::Checkbox("wall", &CheckBoxWall);
 
-  ImGui::Checkbox("Level", &checkLevel);
+  ImGui::Checkbox("Level", &CheckLevel);
 
   if (ImGui::Button("save")) {
-    std::fstream file;
-    file.open("test.lvl", std::ios::out | std::ios::trunc);
+    std::fstream File;
+    File.open("test.lvl", std::ios::out | std::ios::trunc);
 
-    for (auto &tile : map_) {
-      file << *tile << '\n';
+    for (auto &Tile : Map) {
+      File << *Tile << '\n';
     }
-    file << "=====\n";
-    for (auto &tile : mapWall_) {
-      file << *tile << '\n';
+    File << "=====\n";
+    for (auto &Tile : MapWall) {
+      File << *Tile << '\n';
     }
   }
 
   if (ImGui::Button("load")) {
-    map_.clear();
-    mapWall_.clear();
-    std::fstream file;
-    file.open("test.lvl", std::ios::in);
-    while (!file.eof()) {
-      RendererBuilder b;
-      file >> b;
-      file.ignore();
-      if (file.good()) {
-        map_.push_back(b.build());
+    Map.clear();
+    MapWall.clear();
+    std::fstream File;
+    File.open("test.lvl", std::ios::in);
+    while (!File.eof()) {
+      RendererBuilder Builder;
+      File >> Builder;
+      File.ignore();
+      if (File.good()) {
+        Map.push_back(Builder.build());
       } else {
         break;
       }
     }
-    file.clear();
-    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    while (!file.eof()) {
-      RendererBuilder t;
-      file >> t;
-      file.ignore();
-      if (file.good()) {
+    File.clear();
+    File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    while (!File.eof()) {
+      RendererBuilder Builder;
+      File >> Builder;
+      File.ignore();
+      if (File.good()) {
 
-        mapWall_.push_back(t.build());
+        MapWall.push_back(Builder.build());
       } else {
-        file.clear();
-        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        File.clear();
+        File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
       }
     }
   }
@@ -301,16 +305,16 @@ auto Gui::renderCharacterSelector() {
 }
 
 auto Gui::frame() -> void {
-  auto now = SDL_GetTicks();
-  auto fps = now - last;
-  if (fps >= 1000 / 30) {
-    last = now;
-    ++frameCount;
+  auto Now = SDL_GetTicks();
+  auto Fps = Now - Last;
+  if (Fps >= 1000 / 30) {
+    Last = Now;
+    ++FrameCount;
   } else {
     return;
   }
 
-  if (SDL_GetWindowFlags(window.get()) & SDL_WINDOW_MINIMIZED) {
+  if (SDL_GetWindowFlags(Window.get()) & SDL_WINDOW_MINIMIZED) {
     SDL_Delay(10);
     return;
   }
@@ -322,112 +326,116 @@ auto Gui::frame() -> void {
 
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      ImGui::MenuItem("Editor mode", nullptr, &checkEditor_);
+      ImGui::MenuItem("Editor mode", nullptr, &CheckEditor);
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
   }
 
-  ImGui::Text("frame ms: %d", (int)fps);
+  ImGui::Text("frame ms: %d", (int)Fps);
 
-  if (checkEditor_)
+  if (CheckEditor)
     renderCharacterSelector();
 
   ImGui::Render();
-  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-  SDL_RenderClear(renderer);
+  SDL_SetRenderDrawColor(Renderer, 0, 0, 0, 255);
+  SDL_RenderClear(Renderer);
 
-  std::sort(map_.begin(), map_.end());
-  std::sort(mapWall_.begin(), mapWall_.end());
+  std::sort(Map.begin(), Map.end());
+  std::sort(MapWall.begin(), MapWall.end());
 
   showMap();
 
-  if (checkEditor_ && showTileSelector) {
-    SDL_FRect r{static_cast<float>(tileX), static_cast<float>(tileY), 32, 32};
-    SDL_SetRenderDrawColor(renderer, 150, 150, 150, 255);
-    SDL_RenderRect(renderer, &r);
+  if (CheckEditor && ShowTileSelector) {
+    SDL_FRect CursorRect{TileCursorPos.x, TileCursorPos.y, 32, 32};
+    SDL_SetRenderDrawColor(Renderer, 150, 150, 150, 255);
+    SDL_RenderRect(Renderer, &CursorRect);
   }
 
-  enemies[enemyIndex].render(renderer, texture, 300, 100, frameCount);
+  Enemies[EnemyIndex].render(Renderer, Texture, 300, 100, FrameCount);
 
-  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-  SDL_RenderPresent(renderer);
+  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), Renderer);
+  SDL_RenderPresent(Renderer);
 }
 
-auto Gui::load_texture(std::string_view path) -> SdlTexturePtr {
+auto Gui::loadTexture(std::string_view Path) -> SdlTexturePtr {
 
-  auto *iostr = SDL_IOFromFile(path.data(), "r");
-  if (iostr == NULL)
+  auto *Iostr = SDL_IOFromFile(Path.data(), "r");
+  if (Iostr == NULL)
     throw TextureLoadingError{
         std::format("SDL_IOFromFile(): {}", SDL_GetError())};
 
-  SdlSurfacePtr surfaceWizard{IMG_LoadPNG_IO(iostr), SDL_DestroySurface};
-  if (!surfaceWizard)
+  SdlSurfacePtr SurfaceWizard{IMG_LoadPNG_IO(Iostr), SDL_DestroySurface};
+  if (!SurfaceWizard)
     throw TextureLoadingError{
         std::format("IMG_LoadPNG_IO(): {}", SDL_GetError())};
 
-  SdlTexturePtr texture = {
-      SDL_CreateTextureFromSurface(renderer, surfaceWizard.get()),
+  SdlTexturePtr Texture = {
+      SDL_CreateTextureFromSurface(Renderer, SurfaceWizard.get()),
       SDL_DestroyTexture};
-  if (!texture)
+  if (!Texture)
     throw TextureLoadingError{
         std::format("SDL_CreateTextureFromSurface(): {}", SDL_GetError())};
 
-  SDL_SetTextureScaleMode(texture.get(), SDL_SCALEMODE_NEAREST);
-  return texture;
+  SDL_SetTextureScaleMode(Texture.get(), SDL_SCALEMODE_NEAREST);
+  return Texture;
 }
 
-auto Gui::processEventEditor(const SDL_Event &event) -> bool {
-  if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
-      event.button.button == SDL_BUTTON_LEFT && checkEditor_) {
-    SDL_FPoint point;
-    point.x = (event.button.x) - static_cast<int>(event.button.x) % 32;
-    point.y = (event.button.y) - static_cast<int>(event.button.y) % 32 + 32;
+auto Gui::processEventEditor(const SDL_Event &Event) -> bool {
+  if (Event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+      Event.button.button == SDL_BUTTON_LEFT && CheckEditor) {
+    SDL_FPoint Point;
+    Point.x = (Event.button.x) - static_cast<int>(Event.button.x) % 32;
+    Point.y = (Event.button.y) - static_cast<int>(Event.button.y) % 32 + 32;
 
-    auto tile = tiles[tileIndex].build();
-    tile->setPos(point);
-    if (checkBoxWall) {
-      tile->setLevel(checkLevel);
-      std::erase_if(mapWall_,
-                    [point](auto &tile) { return tile->isSamePos(point); });
-      mapWall_.push_back(std::move(tile));
+    auto Tile = Tiles[TileIndex].build();
+    Tile->setPos(Point);
+    if (CheckBoxWall) {
+      Tile->setLevel(CheckLevel);
+      std::erase_if(MapWall,
+                    [Point](auto &Tile) { return Tile->isSamePos(Point); });
+      MapWall.push_back(std::move(Tile));
     } else {
-      std::erase_if(map_,
-                    [point](auto &tile) { return tile->isSamePos(point); });
-      map_.push_back(std::move(tile));
+      std::erase_if(Map,
+                    [Point](auto &Tile) { return Tile->isSamePos(Point); });
+      Map.push_back(std::move(Tile));
     }
     return true;
-  } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
-             event.button.button == SDL_BUTTON_RIGHT && checkEditor_) {
-    SDL_FPoint point;
-    point.x = (event.button.x) - static_cast<int>(event.button.x) % 32;
-    point.y = (event.button.y) - static_cast<int>(event.button.y) % 32 + 32;
+  }
+  if (Event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+      Event.button.button == SDL_BUTTON_RIGHT && CheckEditor) {
+    SDL_FPoint Point;
+    Point.x = (Event.button.x) - static_cast<int>(Event.button.x) % 32;
+    Point.y = (Event.button.y) - static_cast<int>(Event.button.y) % 32 + 32;
 
-    if (checkBoxWall)
-      std::erase_if(mapWall_,
-                    [point](auto &tile) { return tile->isSamePos(point); });
+    if (CheckBoxWall)
+      std::erase_if(MapWall,
+                    [Point](auto &Tile) { return Tile->isSamePos(Point); });
     else
-      std::erase_if(map_,
-                    [point](auto &tile) { return tile->isSamePos(point); });
+      std::erase_if(Map,
+                    [Point](auto &Tile) { return Tile->isSamePos(Point); });
     return true;
   }
   return false;
 }
 
-auto Gui::processEventCharacter(const SDL_Event &event) -> bool {
+auto Gui::processEventCharacter(const SDL_Event &Event) -> bool {
 
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_A) {
-    characters[characterIndex].setHit();
+  if (Event.type == SDL_EVENT_KEY_DOWN && Event.key.key == SDLK_A) {
+    Characters[CharacterIndex].setHit();
     return true;
-  } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_RIGHT) {
-    characters[characterIndex].setRunning(false);
+  }
+  if (Event.type == SDL_EVENT_KEY_DOWN && Event.key.key == SDLK_RIGHT) {
+    Characters[CharacterIndex].setRunning(false);
     return true;
-  } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_LEFT) {
-    characters[characterIndex].setRunning(true);
+  }
+  if (Event.type == SDL_EVENT_KEY_DOWN && Event.key.key == SDLK_LEFT) {
+    Characters[CharacterIndex].setRunning(true);
     return true;
-  } else if (event.type == SDL_EVENT_KEY_UP &&
-             (event.key.key == SDLK_RIGHT || event.key.key == SDLK_LEFT)) {
-    characters[characterIndex].setIdle();
+  }
+  if (Event.type == SDL_EVENT_KEY_UP &&
+      (Event.key.key == SDLK_RIGHT || Event.key.key == SDLK_LEFT)) {
+    Characters[CharacterIndex].setIdle();
     return true;
   }
   return false;
@@ -435,22 +443,22 @@ auto Gui::processEventCharacter(const SDL_Event &event) -> bool {
 
 auto Gui::showMap() -> void {
 
-  for (auto &tile : map_) {
-    tile->render(renderer, texture, frameCount);
+  for (auto &Tile : Map) {
+    Tile->render(Renderer, Texture, FrameCount);
   }
 
-  auto crendered = false;
-  for (auto &tile : mapWall_) {
-    if (!crendered && tile->getPos().y > 108) {
-      crendered = true;
-      characters[characterIndex].render(renderer, texture, 100, 108,
-                                        frameCount);
+  auto Crendered = false;
+  for (auto &Tile : MapWall) {
+    if (!Crendered && Tile->getPos().y > 108) {
+      Crendered = true;
+      Characters[CharacterIndex].render(Renderer, Texture, 100, 108,
+                                        FrameCount);
     }
-    tile->render(renderer, texture, frameCount);
+    Tile->render(Renderer, Texture, FrameCount);
   }
 
-  if (!crendered) {
-    crendered = true;
-    characters[characterIndex].render(renderer, texture, 100, 108, frameCount);
+  if (!Crendered) {
+    Crendered = true;
+    Characters[CharacterIndex].render(Renderer, Texture, 100, 108, FrameCount);
   }
 }

@@ -1,10 +1,10 @@
 import gui;
 
 auto main(int, char **) -> int {
-  Gui g;
+  Gui GameGui;
 
-  while (!g.done()) {
-    g.frame();
+  while (!GameGui.done()) {
+    GameGui.frame();
   }
   return 0;
 }
