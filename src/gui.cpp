@@ -7,6 +7,7 @@ module;
 
 #include <SDL3/SDL_stdinc.h>
 
+#include <format>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -25,63 +26,77 @@ public:
   ///
   /// \param[in] Window the window to render the Gui to
   /// \param[in] Renderer the renderer used to render to the window
-  Gui(SdlWindowPtr &Window, SDL_Renderer *Renderer);
+  Gui(SdlWindowPtr &window, SDL_Renderer *renderer);
+
+  Gui(const Gui &) = default;
+  Gui(Gui &&) = delete;
+  auto operator=(const Gui &) -> Gui & = default;
+  auto operator=(Gui &&) -> Gui & = delete;
+
   ~Gui();
 
-  auto render(SDL_Renderer *Renderer, std::vector<CharacterSprite> &Characters,
-              std::vector<CharacterSprite> &Enemies,
-              std::vector<RendererBuilder> &Tiles,
-              std::vector<std::unique_ptr<Renderable>> &Map,
-              std::vector<std::unique_ptr<Renderable>> &MapWall) -> void;
+  auto render(SDL_Renderer *renderer, std::vector<CharacterSprite> &characters,
+              std::vector<CharacterSprite> &enemies,
+              std::vector<RendererBuilder> &tiles,
+              std::vector<std::unique_ptr<Renderable>> &map,
+              std::vector<std::unique_ptr<Renderable>> &mapWall) -> void;
 
-  auto isEditorMode() -> bool { return CheckEditor; }
-  auto isLevel() -> bool { return CheckLevel; }
-  auto isRunning() -> bool { return CheckBoxRuning; }
-  auto isWall() -> bool { return CheckBoxWall; }
+  [[nodiscard]] auto isEditorMode() const -> bool { return checkEditor_; }
+  [[nodiscard]] auto isLevel() const -> bool { return checkLevel_; }
+  [[nodiscard]] auto isRunning() const -> bool { return checkBoxRuning_; }
+  [[nodiscard]] auto isWall() const -> bool { return checkBoxWall_; }
 
-  auto setTimeToRenderFrame(int TimeToRenderFrame) {
-    this->TimeToRenderFrame = TimeToRenderFrame;
+  auto frameRenderingDuration(Uint64 timeToRenderFrame) {
+    this->timeToRenderFrame_ = timeToRenderFrame;
   }
 
-  auto
-  renderCharacterSelector(std::vector<CharacterSprite> &Characters,
-                          std::vector<CharacterSprite> &Enemies,
-                          std::vector<RendererBuilder> &Tiles,
-                          std::vector<std::unique_ptr<Renderable>> &Map,
-                          std::vector<std::unique_ptr<Renderable>> &MapWall)
-      -> void;
-  auto processEvent(SDL_Event &Event) -> bool;
+  auto renderEditorOptions(std::vector<CharacterSprite> &characters,
+                           std::vector<CharacterSprite> &enemies,
+                           std::vector<RendererBuilder> &tiles,
+                           std::vector<std::unique_ptr<Renderable>> &map,
+                           std::vector<std::unique_ptr<Renderable>> &mapWall)
 
-  auto getCharacterIndex() -> size_t { return CharacterIndex; }
-  auto getEnemyIndex() -> size_t { return EnemyIndex; }
-  auto getTileIndex() -> size_t { return TileIndex; }
+      -> void;
+
+  template <class Array>
+  auto renderComboBox(const char *name, Array &array, size_t &currentIndex)
+      -> void;
+
+  /// processEvent for imgui
+  ///
+  /// \param Event the event from Sdl
+  /// \return true if imgui used the event
+  static auto processEvent(SDL_Event &event) -> bool;
+
+  [[nodiscard]] auto getCharacterIndex() const -> size_t {
+    return characterIndex_;
+  }
+  [[nodiscard]] auto getEnemyIndex() const -> size_t { return enemyIndex_; }
+  [[nodiscard]] auto getTileIndex() const -> size_t { return tileIndex_; }
 
 private:
-  bool CheckBoxRuning;
-  bool CheckBoxWall;
-  bool CheckLevel;
-  bool CheckEditor;
-  Uint64 TimeToRenderFrame;
-  size_t CharacterIndex;
-  size_t EnemyIndex;
-  size_t TileIndex;
+  bool checkBoxRuning_{};
+  bool checkBoxWall_{};
+  bool checkLevel_{};
+  bool checkEditor_{};
+  Uint64 timeToRenderFrame_{};
+  size_t characterIndex_{};
+  size_t enemyIndex_{};
+  size_t tileIndex_{};
 };
 
-Gui::Gui(SdlWindowPtr &Window, SDL_Renderer *Renderer)
-    : CheckBoxRuning{false}, CheckBoxWall{false}, CheckEditor{false},
-      CheckLevel{false}, TimeToRenderFrame{0}, CharacterIndex{0}, EnemyIndex{0},
-      TileIndex{0} {
+Gui::Gui(SdlWindowPtr &window, SDL_Renderer *renderer) {
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  auto &Io = ImGui::GetIO();
-  Io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  Io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  auto &imIo = ImGui::GetIO();
+  imIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  imIo.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
   ImGui::StyleColorsDark();
 
-  ImGui_ImplSDL3_InitForSDLRenderer(Window.get(), Renderer);
-  ImGui_ImplSDLRenderer3_Init(Renderer);
+  ImGui_ImplSDL3_InitForSDLRenderer(window.get(), renderer);
+  ImGui_ImplSDLRenderer3_Init(renderer);
 }
 
 Gui::~Gui() {
@@ -90,12 +105,12 @@ Gui::~Gui() {
   ImGui::DestroyContext();
 }
 
-auto Gui::render(SDL_Renderer *Renderer,
-                 std::vector<CharacterSprite> &Characters,
-                 std::vector<CharacterSprite> &Enemies,
-                 std::vector<RendererBuilder> &Tiles,
-                 std::vector<std::unique_ptr<Renderable>> &Map,
-                 std::vector<std::unique_ptr<Renderable>> &MapWall) -> void {
+auto Gui::render(SDL_Renderer *renderer,
+                 std::vector<CharacterSprite> &characters,
+                 std::vector<CharacterSprite> &enemies,
+                 std::vector<RendererBuilder> &tiles,
+                 std::vector<std::unique_ptr<Renderable>> &map,
+                 std::vector<std::unique_ptr<Renderable>> &mapWall) -> void {
 
   ImGui_ImplSDLRenderer3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
@@ -103,119 +118,113 @@ auto Gui::render(SDL_Renderer *Renderer,
 
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      ImGui::MenuItem("Editor mode", nullptr, &CheckEditor);
+      ImGui::MenuItem("Editor mode", nullptr, &checkEditor_);
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
   }
 
-  ImGui::Text("frame ms: %lu", TimeToRenderFrame);
+  std::string frameRenderingDuationText =
+      std::format("frame ms:{}", timeToRenderFrame_);
+  ImGui::TextUnformatted(frameRenderingDuationText.data(),
+                         &*frameRenderingDuationText.cend());
 
-  if (CheckEditor)
-    renderCharacterSelector(Characters, Enemies, Tiles, Map, MapWall);
+  if (checkEditor_) {
+    renderEditorOptions(characters, enemies, tiles, map, mapWall);
+  }
 
   ImGui::Render();
-  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), Renderer);
+  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 }
 
-auto Gui::processEvent(SDL_Event &Event) -> bool {
+auto Gui::processEvent(SDL_Event &event) -> bool {
 
-  ImGui_ImplSDL3_ProcessEvent(&Event);
+  ImGui_ImplSDL3_ProcessEvent(&event);
   return ImGui::GetIO().WantCaptureMouse;
 }
 
-auto Gui::renderCharacterSelector(
-    std::vector<CharacterSprite> &Characters,
-    std::vector<CharacterSprite> &Enemies, std::vector<RendererBuilder> &Tiles,
-    std::vector<std::unique_ptr<Renderable>> &Map,
-    std::vector<std::unique_ptr<Renderable>> &MapWall) -> void {
-  ImGui::Begin("Character Selector");
-  if (ImGui::BeginCombo("Character Selector",
-                        Characters[CharacterIndex].name().c_str())) {
-    for (auto Index = 0; Index < Characters.size(); ++Index) {
-      if (ImGui::Selectable(Characters[Index].name().c_str(),
-                            CharacterIndex == Index))
-        CharacterIndex = Index;
+template <class Array>
+auto Gui::renderComboBox(const char *name, Array &array, size_t &currentIndex)
+    -> void {
+  if (ImGui::BeginCombo(name, array[currentIndex].name().c_str())) {
+    for (auto index = 0; index < array.size(); ++index) {
+      if (ImGui::Selectable(array[index].name().c_str(),
+                            currentIndex == index)) {
+        currentIndex = index;
+      }
 
-      if (CharacterIndex == Index)
+      if (currentIndex == index) {
         ImGui::SetItemDefaultFocus();
+      }
     }
     ImGui::EndCombo();
   }
-  if (ImGui::BeginCombo("Enemy Selector", Enemies[EnemyIndex].name().c_str())) {
-    for (auto Index = 0; Index < Enemies.size(); ++Index) {
-      if (ImGui::Selectable(Enemies[Index].name().c_str(),
-                            CharacterIndex == Index))
-        EnemyIndex = Index;
+}
 
-      if (EnemyIndex == Index)
-        ImGui::SetItemDefaultFocus();
+auto Gui::renderEditorOptions(std::vector<CharacterSprite> &characters,
+                              std::vector<CharacterSprite> &enemies,
+                              std::vector<RendererBuilder> &tiles,
+                              std::vector<std::unique_ptr<Renderable>> &map,
+                              std::vector<std::unique_ptr<Renderable>> &mapWall)
+    -> void {
+  ImGui::Begin("Editor");
+  renderComboBox("Character Selector", characters, characterIndex_);
+  renderComboBox("Enemy Selector", enemies, enemyIndex_);
+
+  if (ImGui::Checkbox("running", &checkBoxRuning_)) {
+    if (checkBoxRuning_) {
+      enemies[enemyIndex_].setRunning(false);
+    } else {
+      enemies[enemyIndex_].setIdle();
     }
-    ImGui::EndCombo();
   }
 
-  if (ImGui::Checkbox("running", &CheckBoxRuning)) {
-    if (CheckBoxRuning)
-      Enemies[EnemyIndex].setRunning(false);
-    else
-      Enemies[EnemyIndex].setIdle();
-  }
+  renderComboBox("Tile Selector", tiles, tileIndex_);
 
-  auto Tile = Tiles[TileIndex];
-  if (ImGui::BeginCombo("Tile Selector", Tile.name().c_str())) {
-    for (auto Index = 0; Index < Tiles.size(); ++Index) {
-      if (ImGui::Selectable(Tiles[Index].name().c_str(), TileIndex == Index))
-        TileIndex = Index;
+  ImGui::Checkbox("wall", &checkBoxWall_);
 
-      if (TileIndex == Index)
-        ImGui::SetItemDefaultFocus();
-    }
-    ImGui::EndCombo();
-  }
-  ImGui::Checkbox("wall", &CheckBoxWall);
-
-  ImGui::Checkbox("Level", &CheckLevel);
+  ImGui::Checkbox("Level", &checkLevel_);
 
   if (ImGui::Button("save")) {
-    std::fstream File;
-    File.open("test.lvl", std::ios::out | std::ios::trunc);
+    std::fstream file;
+    file.open("test.lvl", std::ios::out | std::ios::trunc);
 
-    for (auto &Tile : Map) {
-      File << *Tile << '\n';
+    for (auto &tile : map) {
+      file << *tile << '\n';
     }
-    File << "=====\n";
-    for (auto &Tile : MapWall) {
-      File << *Tile << '\n';
+    file << "=====\n";
+    for (auto &tile : mapWall) {
+      file << *tile << '\n';
     }
   }
 
   if (ImGui::Button("load")) {
-    Map.clear();
-    MapWall.clear();
-    std::fstream File;
-    File.open("test.lvl", std::ios::in);
-    while (!File.eof()) {
-      RendererBuilder Builder;
-      File >> Builder;
-      File.ignore();
-      if (File.good()) {
-        Map.push_back(Builder.build());
+    map.clear();
+    mapWall.clear();
+    std::fstream file;
+    file.open("test.lvl", std::ios::in);
+    while (!file.eof()) {
+      RendererBuilder builder;
+      file >> builder;
+      file.ignore();
+      if (file.good()) {
+        map.push_back(builder.build());
       } else {
         break;
       }
     }
-    File.clear();
-    File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    while (!File.eof()) {
-      RendererBuilder Builder;
-      File >> Builder;
-      File.ignore();
-      if (File.good()) {
+    file.clear();
+    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    while (!file.eof()) {
+      RendererBuilder builder;
+      file >> builder;
+      file.ignore();
+      if (file.good()) {
 
-        MapWall.push_back(Builder.build());
+        mapWall.push_back(builder.build());
       } else {
-        File.clear();
-        File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        file.clear();
+        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
       }
     }
   }

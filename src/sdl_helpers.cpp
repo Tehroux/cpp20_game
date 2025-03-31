@@ -20,25 +20,25 @@ export using SdlSurfacePtr =
 export using SdlWindowPtr = std::unique_ptr<SDL_Window, void (*)(SDL_Window *)>;
 
 /// add SDL_FPoint to an output stream in the form 'x y'
-export std::ostream &operator<<(std::ostream &Os, const SDL_FPoint &Point) {
-  Os << Point.x << ' ' << Point.y;
-  return Os;
+export auto operator<<(std::ostream &ostream, const SDL_FPoint &point) -> std::ostream & {
+  ostream << point.x << ' ' << point.y;
+  return ostream;
 }
 
 /// add SDL_Frect to an output stream in the form 'x y w h'
-export std::ostream &operator<<(std::ostream &Os, const SDL_FRect &Rect) {
-  Os << Rect.x << ' ' << Rect.y << ' ' << Rect.w << ' ' << Rect.h;
-  return Os;
+export auto operator<<(std::ostream &ostream, const SDL_FRect &rect) -> std::ostream & {
+  ostream << rect.x << ' ' << rect.y << ' ' << rect.w << ' ' << rect.h;
+  return ostream;
 }
 
 /// read an SDL_FPoint from an input stream in the form 'x y'
-export std::istream &operator>>(std::istream &Is, SDL_FPoint &Point) {
-  Is >> Point.x >> Point.y;
-  return Is;
+export auto operator>>(std::istream &istream, SDL_FPoint &point) -> std::istream & {
+  istream >> point.x >> point.y;
+  return istream;
 }
 
 /// read an SDL_Frect from an input stream in the form 'x y w h'
-export std::istream &operator>>(std::istream &Is, SDL_FRect &Rect) {
-  Is >> Rect.x >> Rect.y >> Rect.w >> Rect.h;
-  return Is;
+export auto operator>>(std::istream &istream, SDL_FRect &rect) -> std::istream & {
+  istream >> rect.x >> rect.y >> rect.w >> rect.h;
+  return istream;
 }
