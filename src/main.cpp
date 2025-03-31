@@ -1,10 +1,10 @@
-import gui;
+import game;
 
 auto main(int, char **) -> int {
-  Gui GameGui;
+  Game GameInstance;
 
-  while (!GameGui.done()) {
-    GameGui.frame();
+  while (!GameInstance.done()) {
+    GameInstance.frame();
   }
   return 0;
 }

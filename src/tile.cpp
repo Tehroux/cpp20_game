@@ -129,11 +129,14 @@ public:
   virtual auto serialize(std::ostream &) -> void = 0;
 
 protected:
-  std::string RenderableName; ///< the Renderable name
-  SDL_FPoint RenderablePos;   ///< the Renderable Pos on the screen
-  SDL_FRect SourceRect; ///< the Renderable source rectangle on the texture
-  bool RenderableLevel; ///< whether the Renderable is on the ground or in the
-                        ///< air
+  /// the Renderable name
+  std::string RenderableName;
+  /// the Renderable Pos on the screen
+  SDL_FPoint RenderablePos;
+  /// the Renderable source rectangle on the texture
+  SDL_FRect SourceRect;
+  /// whether the Renderable is on the ground or in the air
+  bool RenderableLevel;
 };
 
 export std::ostream &operator<<(std::ostream &Os, Renderable &R) {
@@ -177,8 +180,6 @@ public:
   /// the renderable is write to the output stream in the form:\n
   /// RenderableName RendererType RenderableSourceRect RenderablePos
   /// RenderableLevel
-  ///
-  /// \param[in] Os the output stream
   virtual auto serialize(std::ostream &Os) -> void override {
     Os << RenderableName << ' ' << TileRenderer << ' ' << SourceRect << ' '
        << RenderablePos << ' ' << RenderableLevel;
@@ -219,23 +220,22 @@ public:
         RenderableIsAnimated{Animated} {}
 
   /// create the Renterable
-  ///
-  /// \return the created Renderable
   auto build() -> std::unique_ptr<Renderable>;
 
   /// get the name of the Renderable
-  ///
-  /// \\\ the name of the renderable
   auto name() -> const std::string & { return RenderableName; }
 
 private:
-  std::string RenderableName; ///< the name of the Renderable
-  SDL_FRect
-      RenderableSourceRect;  ///< the Renderable rectangle area in the texture
-  bool RenderableIsAnimated; ///< whether the Renderable is animated
-  SDL_FPoint RenderablePos;  ///< The renderable position on the screen
-  bool RenderableLevel; ///< whether the Renderable is on the ground or in the
-                        ///< air
+  /// the name of the Renderable
+  std::string RenderableName;
+  /// the Renderable rectangle area in the texture
+  SDL_FRect RenderableSourceRect;
+  /// whether the Renderable is animated
+  bool RenderableIsAnimated;
+  /// The renderable position on the screen
+  SDL_FPoint RenderablePos;
+  /// whether the Renderable is on the ground or in the air
+  bool RenderableLevel;
 };
 
 std::unique_ptr<Renderable> RendererBuilder::build() {
@@ -260,10 +260,7 @@ std::unique_ptr<Renderable> RendererBuilder::build() {
 /// RenderableSourceRect = x y w h\n
 /// RenderablePos = x y
 ///
-/// \param Is the input stream to read from
 /// \param &Builer the Builder to put the information to
-///
-/// \return the input stream
 export std::istream &operator>>(std::istream &Is, RendererBuilder &Builder) {
 
   auto StreamPos = Is.tellg();
