@@ -249,8 +249,8 @@ auto Game::frame() -> void {
     SDL_RenderRect(renderer_, &cursorRect);
   }
 
-  enemies_[gameGui_->getEnemyIndex()].render(renderer_, texture_, {300, 100},
-                                             frameCount_);
+  enemies_[gameGui_->getEnemyIndex()].setPos({300, 100});
+  enemies_[gameGui_->getEnemyIndex()].render(renderer_, texture_, frameCount_);
 
   gameGui_->render(renderer_, characters_, enemies_, tiles_, map_, mapWall_);
   SDL_RenderPresent(renderer_);
@@ -287,7 +287,7 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
       event.button.button == SDL_BUTTON_LEFT) {
     SDL_FPoint point;
     point.x = event.button.x - std::fmod(event.button.x, gridSize);
-    point.y = event.button.y - std::fmod(event.button.y, gridSize);
+    point.y = event.button.y - std::fmod(event.button.y, gridSize) + gridSize;
 
     auto tile = tiles_[gameGui_->getTileIndex()].build();
     tile->setPos(point);
@@ -349,19 +349,21 @@ auto Game::showMap() -> void {
     tile->render(renderer_, texture_, frameCount_);
   }
 
+  auto &character = characters_[gameGui_->getCharacterIndex()];
+  character.setPos({100, 108});
+
   auto crendered = false;
   for (auto &tile : mapWall_) {
-    if (!crendered && tile->getPos().y > 108) {
+    if (!crendered && tile->getPos().y > character.getPos().y) {
       crendered = true;
-      characters_[gameGui_->getCharacterIndex()].render(
-          renderer_, texture_, {100, 108}, frameCount_);
+      character.render(
+          renderer_, texture_, frameCount_);
     }
     tile->render(renderer_, texture_, frameCount_);
   }
 
   if (!crendered) {
     crendered = true;
-    characters_[gameGui_->getCharacterIndex()].render(renderer_, texture_,
-                                                      {100, 108}, frameCount_);
+    character.render(renderer_, texture_, frameCount_);
   }
 }

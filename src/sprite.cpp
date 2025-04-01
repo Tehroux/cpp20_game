@@ -6,112 +6,124 @@ module;
 #include <SDL3_image/SDL_image.h>
 
 #include <cmath>
-#include <memory>
 #include <string>
+#include <utility>
 
 export module sprite;
 import tile;
 import sdlHelpers;
 
-export using SdlTexturePtr =
-    std::unique_ptr<SDL_Texture, void (*)(SDL_Texture *)>;
-
-export class CharacterSprite {
+export class CharacterSprite final : public Renderable {
 public:
-  CharacterSprite(const std::string &Name, const SDL_FRect &Rect, bool CanRun,
-                  bool CantHit);
+  CharacterSprite(const std::string &name, const SDL_FRect &rect, bool canRun,
+                  bool canHit);
 
-  auto name() -> const std::string & { return Name; }
+  CharacterSprite(const CharacterSprite &) = default;
+  CharacterSprite(CharacterSprite &&) = delete;
+  auto operator=(const CharacterSprite &) -> CharacterSprite & = default;
+  auto operator=(CharacterSprite &&) -> CharacterSprite & = delete;
 
-  auto getIdleTextureRect() -> SDL_FRect;
-  auto getRunTextureRect() -> SDL_FRect;
-  auto getHitTextureRect() -> SDL_FRect;
-  auto getTextureRect() -> SDL_FRect;
-  auto getDestRect(const SDL_FPoint &Pos) -> SDL_FRect;
+  ~CharacterSprite() override = default;
+
+  [[nodiscard]] auto getIdleTextureRect() const -> SDL_FRect;
+  [[nodiscard]] auto getRunTextureRect() const -> SDL_FRect;
+  [[nodiscard]] auto getHitTextureRect() const -> SDL_FRect;
+  [[nodiscard]] auto getTextureRect() -> SDL_FRect;
+  [[nodiscard]] auto getDestRect(const SDL_FPoint &pos) const -> SDL_FRect;
+
+  auto serialize(std::ostream &ostream) -> void override {}
 
   auto incIndex();
 
-  auto setHit() { Hit = true; }
-  auto setRunning(bool Dir) {
-    this->Running = true;
-    Direction = Dir;
+  auto setHit() { hit_ = true; }
+  auto setRunning(bool dir) {
+    this->running_ = true;
+    direction_ = dir;
   }
-  auto setIdle() { this->Running = false; }
+  auto setIdle() { this->running_ = false; }
 
-  auto render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
-              const SDL_FPoint &Pos, size_t FrameCount);
+  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
+      -> void override;
 
 private:
-  static constexpr float RunFrameIndex = 4;
-  static constexpr float HitFrameIndex = 8;
-  static constexpr float AnimationFrameNumber = 4;
+  static constexpr float runFrameIndex = 4;
+  static constexpr float hitFrameIndex = 8;
+  static constexpr float animationFrameNumber = 4;
 
-  std::string Name;
-  SDL_FRect SourceRect;
-  float Index{};
-  bool Hit{};
-  bool Running{};
-  bool Direction{};
-  bool CanRun;
-  bool CanHit;
-  int HitFrame = 0;
+  float index_{};
+  bool hit_{};
+  bool running_{};
+  bool direction_{};
+  bool canRun_;
+  bool canHit_;
+  int hitFrame_ = 0;
 };
 
-CharacterSprite::CharacterSprite(const std::string &Name, const SDL_FRect &Rect,
-                                 bool CanRun, bool CanHit)
-    : Name{Name}, SourceRect{Rect}, CanRun{CanRun}, CanHit{CanHit} {}
+CharacterSprite::CharacterSprite(const std::string &name, const SDL_FRect &rect,
+                                 bool canRun, bool canHit)
+    : Renderable{name, rect}, canRun_{canRun}, canHit_{canHit} {}
 
-auto CharacterSprite::getIdleTextureRect() -> SDL_FRect {
-  return {SourceRect.x + Index * SourceRect.w, SourceRect.y, SourceRect.w,
-          SourceRect.h};
+auto CharacterSprite::getIdleTextureRect() const -> SDL_FRect {
+
+  auto sourceRect = getSourceRect();
+  return {sourceRect.x + (index_ * sourceRect.w), sourceRect.y, sourceRect.w,
+          sourceRect.h};
 }
 
-auto CharacterSprite::getRunTextureRect() -> SDL_FRect {
-  return {SourceRect.x + (RunFrameIndex + Index) * SourceRect.w, SourceRect.y,
-          SourceRect.w, SourceRect.h};
+auto CharacterSprite::getRunTextureRect() const -> SDL_FRect {
+  auto sourceRect = getSourceRect();
+  return {sourceRect.x + ((runFrameIndex + index_) * sourceRect.w),
+          sourceRect.y, sourceRect.w, sourceRect.h};
 }
 
-auto CharacterSprite::getHitTextureRect() -> SDL_FRect {
-  return {SourceRect.x + HitFrameIndex * SourceRect.w, SourceRect.y,
-          SourceRect.w, SourceRect.h};
+auto CharacterSprite::getHitTextureRect() const -> SDL_FRect {
+  auto sourceRect = getSourceRect();
+  return {sourceRect.x + (hitFrameIndex * sourceRect.w), sourceRect.y,
+          sourceRect.w, sourceRect.h};
 }
 
 auto CharacterSprite::getTextureRect() -> SDL_FRect {
-  if (CanHit && Hit) {
-    if (++HitFrame == 2) {
-      HitFrame = 0;
-      Hit = false;
+  if (canHit_ && hit_) {
+    if (++hitFrame_ == 2) {
+      hitFrame_ = 0;
+      hit_ = false;
     }
     return getHitTextureRect();
   }
 
-  if (CanRun && Running) {
+  if (canRun_ && running_) {
     return getRunTextureRect();
   }
 
   return getIdleTextureRect();
 }
 
-auto CharacterSprite::getDestRect(const SDL_FPoint &Pos) -> SDL_FRect {
-  return {Pos.x, Pos.y, SourceRect.w * 2, SourceRect.h * 2};
+auto CharacterSprite::getDestRect(const SDL_FPoint &pos) const -> SDL_FRect {
+  auto sourceRect = getSourceRect();
+  return {pos.x, pos.y, sourceRect.w * 2, sourceRect.h * 2};
 }
 
 auto CharacterSprite::incIndex() {
-  Index = std::fmod(++Index, AnimationFrameNumber);
+  index_ = std::fmod(++index_, animationFrameNumber);
 }
 
-auto CharacterSprite::render(SDL_Renderer *Renderer, SdlTexturePtr &Texture,
-                             const SDL_FPoint &Pos, size_t FrameCount) {
-  if (FrameCount % 2 == 0)
+auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+                             size_t frameCount) -> void {
+  if (frameCount % 2 == 0) {
     incIndex();
+  }
 
-  SDL_FRect DestRect = getDestRect({Pos.x, Pos.y - SourceRect.h * 2});
-  SDL_FRect SourceRect = getTextureRect();
-  SDL_FPoint Center{0, 0};
+  auto pos = getPos();
 
-  if (Direction)
-    SDL_RenderTextureRotated(Renderer, Texture.get(), &SourceRect, &DestRect, 0,
-                             &Center, SDL_FLIP_HORIZONTAL);
-  else
-    SDL_RenderTexture(Renderer, Texture.get(), &SourceRect, &DestRect);
+  auto sourceRect_ = getSourceRect();
+  SDL_FRect destRect = getDestRect({pos.x, pos.y - (sourceRect_.h * 2)});
+  SDL_FRect sourceRect = getTextureRect();
+  SDL_FPoint center{0, 0};
+
+  if (direction_) {
+    SDL_RenderTextureRotated(renderer, texture.get(), &sourceRect, &destRect, 0,
+                             &center, SDL_FLIP_HORIZONTAL);
+  } else {
+    SDL_RenderTexture(renderer, texture.get(), &sourceRect, &destRect);
+  }
 }

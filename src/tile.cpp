@@ -114,6 +114,7 @@ public:
   auto operator=(Renderable &&) -> Renderable & = delete;
   virtual ~Renderable() = default;
 
+  /// return the name the renderable
   auto name() -> const std::string & { return renderableName_; }
 
   auto setPos(const SDL_FPoint &pos) { renderablePos_ = pos; }
@@ -121,12 +122,16 @@ public:
     return {renderablePos_.x,
             renderablePos_.y + (renderableLevel_ ? sourceRect_.h * 2 : 0)};
   }
+
   auto setLevel(bool level) -> void { renderableLevel_ = level; }
   [[nodiscard]] auto getLevel() const -> bool { return renderableLevel_; }
+
+  /// operator less than for sorting
   auto operator<(const Renderable &other) const -> bool {
     return getPos().y < other.getPos().y;
   }
 
+  /// check if the renderable is in pos
   [[nodiscard]] auto isSamePos(const SDL_FPoint &pos) const -> bool {
     return renderablePos_.x == pos.x && renderablePos_.y == pos.y;
   }
@@ -143,9 +148,13 @@ public:
   virtual auto serialize(std::ostream &) -> void = 0;
 
 protected:
-  auto getRenderableName() -> std::string { return renderableName_; }
-  auto getRenderablePos() -> SDL_FPoint { return renderablePos_; }
-  auto getSourceRect() -> SDL_FRect { return sourceRect_; }
+  [[nodiscard]] auto getRenderableName() const -> std::string {
+    return renderableName_;
+  }
+  [[nodiscard]] auto getRenderablePos() const -> SDL_FPoint {
+    return renderablePos_;
+  }
+  [[nodiscard]] auto getSourceRect() const -> const SDL_FRect& { return sourceRect_; }
   [[nodiscard]] auto getRenderableLevel() const -> bool {
     return renderableLevel_;
   }
