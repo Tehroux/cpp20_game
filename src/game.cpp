@@ -53,6 +53,37 @@ private:
   std::string errorMessage_; ///< the error message
 };
 
+class Character {
+public:
+  Character(float posX, float posY) : posX_{posX}, posY_{posY} {}
+  auto setPos(float newPosX, float newPosY) -> void {
+    posX_ = newPosX;
+    posY_ = newPosY;
+  }
+  auto updateAngle(float newAngle) -> void { angle_ = newAngle; }
+  auto updateSpeed(float newSpeed) -> void { speed_ = newSpeed; }
+
+  auto update(Uint64 deltaTime) -> void {
+    auto distance = static_cast<float>(deltaTime) * speed_;
+    auto angleRad = angle_ * std::numbers::pi / 180;
+    auto deltaX = distance * std::cos(angleRad);
+    auto deltaY = distance * std::sin(angleRad);
+    posX_ += static_cast<float>(deltaX);
+    posY_ += static_cast<float>(deltaY);
+  }
+
+  [[nodiscard]] auto getPos() const -> SDL_FPoint {
+    return {posX_ * 2, posY_ * 2};
+  }
+  static constexpr float speed{0.05};
+
+private:
+  float posX_;
+  float posY_;
+  float angle_{};
+  float speed_{};
+};
+
 /// an error occured while loading a texture
 class TextureLoadingError : public std::exception {
 public:
@@ -113,6 +144,8 @@ private:
   Uint32 last_{};
 
   std::optional<Gui> gameGui_;
+
+  Character player{100, 100};
 
   std::vector<CharacterSprite> characters_;
   std::vector<CharacterSprite> enemies_;
@@ -187,7 +220,7 @@ auto Game::processEvent() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
 
-    if (gameGui_->processEvent(event)) {
+    if (Gui::processEvent(event)) {
       showTileSelector_ = false;
       continue;
     }
@@ -234,11 +267,14 @@ auto Game::frame() -> void {
 
   processEvent();
 
+  player.update(fps);
+
   SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
   SDL_RenderClear(renderer_);
 
   std::ranges::sort(map_);
-  std::ranges::sort(mapWall_);
+  std::ranges::sort(
+      mapWall_, [](auto &a, auto &b) { return a->getPos().y < b->getPos().y; });
 
   showMap();
 
@@ -329,8 +365,28 @@ auto Game::processEventCharacter(const SDL_Event &event) -> bool {
   }
   if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_RIGHT) {
     characters_[gameGui_->getCharacterIndex()].setRunning(false);
+    player.updateAngle(0);
+    player.updateSpeed(Character::speed);
     return true;
   }
+  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_UP) {
+    player.updateAngle(90);
+    player.updateSpeed(Character::speed);
+    return true;
+  }
+  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_LEFT) {
+    characters_[gameGui_->getCharacterIndex()].setRunning(true);
+    player.updateAngle(180);
+    player.updateSpeed(Character::speed);
+    return true;
+  }
+  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_DOWN) {
+    player.updateAngle(270);
+    player.updateSpeed(Character::speed);
+    return true;
+  }
+  player.updateSpeed(0);
+
   if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_LEFT) {
     characters_[gameGui_->getCharacterIndex()].setRunning(true);
     return true;
@@ -350,20 +406,24 @@ auto Game::showMap() -> void {
   }
 
   auto &character = characters_[gameGui_->getCharacterIndex()];
-  character.setPos({100, 108});
+  character.setPos(player.getPos());
 
   auto crendered = false;
+  std::cout << " ========\n";
   for (auto &tile : mapWall_) {
+    std::cout << tile->getPos().y << '\n';
     if (!crendered && tile->getPos().y > character.getPos().y) {
       crendered = true;
-      character.render(
-          renderer_, texture_, frameCount_);
+      character.render(renderer_, texture_, frameCount_);
     }
     tile->render(renderer_, texture_, frameCount_);
   }
-
   if (!crendered) {
     crendered = true;
     character.render(renderer_, texture_, frameCount_);
   }
+
+  SDL_SetRenderDrawColor(renderer_, 50, 250, 50, 255);
+  SDL_FRect r = {character.getPos().x, character.getPos().y, 16, 1};
+  SDL_RenderRect(renderer_, &r);
 }
