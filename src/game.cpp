@@ -5,6 +5,7 @@ module;
 
 #include <imgui.h>
 
+#include "SDL3/SDL_keyboard.h"
 #include "SDL3/SDL_keycode.h"
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_stdinc.h"
@@ -75,7 +76,7 @@ public:
   [[nodiscard]] auto getPos() const -> SDL_FPoint {
     return {posX_ * 2, posY_ * 2};
   }
-  static constexpr float speed{0.05};
+  static constexpr float speed{0.06};
 
 private:
   float posX_;
@@ -125,6 +126,7 @@ public:
   auto showMap() -> void;
 
   auto frame() -> void;
+  auto checkKeys() -> void;
 
   [[nodiscard]] auto done() const noexcept -> bool { return done_; }
 
@@ -267,6 +269,7 @@ auto Game::frame() -> void {
 
   processEvent();
 
+  checkKeys();
   player.update(fps);
 
   SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
@@ -363,40 +366,49 @@ auto Game::processEventCharacter(const SDL_Event &event) -> bool {
     characters_[gameGui_->getCharacterIndex()].setHit();
     return true;
   }
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_RIGHT) {
-    characters_[gameGui_->getCharacterIndex()].setRunning(false);
-    player.updateAngle(0);
+  return false;
+}
+
+auto Game::checkKeys() -> void {
+  SDL_PumpEvents();
+  auto *keys = SDL_GetKeyboardState(nullptr);
+
+  if (keys[SDL_SCANCODE_UP]) {
     player.updateSpeed(Character::speed);
-    return true;
-  }
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_UP) {
-    player.updateAngle(90);
+    if (keys[SDL_SCANCODE_LEFT]) {
+      player.updateAngle(135);
+      characters_[gameGui_->getCharacterIndex()].setRunning(true);
+    } else if (keys[SDL_SCANCODE_RIGHT]) {
+      player.updateAngle(45);
+      characters_[gameGui_->getCharacterIndex()].setRunning(false);
+    } else {
+      characters_[gameGui_->getCharacterIndex()].setRunning();
+      player.updateAngle(90);
+    }
+  } else if (keys[SDL_SCANCODE_DOWN]) {
     player.updateSpeed(Character::speed);
-    return true;
-  }
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_LEFT) {
+    if (keys[SDL_SCANCODE_LEFT]) {
+      characters_[gameGui_->getCharacterIndex()].setRunning(true);
+      player.updateAngle(225);
+    } else if (keys[SDL_SCANCODE_RIGHT]) {
+      characters_[gameGui_->getCharacterIndex()].setRunning(false);
+      player.updateAngle(315);
+    } else {
+      characters_[gameGui_->getCharacterIndex()].setRunning();
+      player.updateAngle(270);
+    }
+  } else if (keys[SDL_SCANCODE_LEFT]) {
+    player.updateSpeed(Character::speed);
     characters_[gameGui_->getCharacterIndex()].setRunning(true);
     player.updateAngle(180);
+  } else if (keys[SDL_SCANCODE_RIGHT]) {
     player.updateSpeed(Character::speed);
-    return true;
-  }
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_DOWN) {
-    player.updateAngle(270);
-    player.updateSpeed(Character::speed);
-    return true;
-  }
-  player.updateSpeed(0);
-
-  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_LEFT) {
-    characters_[gameGui_->getCharacterIndex()].setRunning(true);
-    return true;
-  }
-  if (event.type == SDL_EVENT_KEY_UP &&
-      (event.key.key == SDLK_RIGHT || event.key.key == SDLK_LEFT)) {
+    characters_[gameGui_->getCharacterIndex()].setRunning(false);
+    player.updateAngle(0);
+  } else {
+    player.updateSpeed(0);
     characters_[gameGui_->getCharacterIndex()].setIdle();
-    return true;
   }
-  return false;
 }
 
 auto Game::showMap() -> void {
@@ -409,9 +421,7 @@ auto Game::showMap() -> void {
   character.setPos(player.getPos());
 
   auto crendered = false;
-  std::cout << " ========\n";
   for (auto &tile : mapWall_) {
-    std::cout << tile->getPos().y << '\n';
     if (!crendered && tile->getPos().y > character.getPos().y) {
       crendered = true;
       character.render(renderer_, texture_, frameCount_);

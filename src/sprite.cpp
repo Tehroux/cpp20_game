@@ -40,6 +40,9 @@ public:
     this->running_ = true;
     direction_ = dir;
   }
+  auto setRunning() {
+    this->running_ = true;
+  }
   auto setIdle() { this->running_ = false; }
 
   auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
