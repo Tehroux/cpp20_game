@@ -119,7 +119,7 @@ auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
   auto pos = getPos();
 
   auto sourceRect_ = getSourceRect();
-  SDL_FRect destRect = getDestRect({pos.x, pos.y - (sourceRect_.h * 2)});
+  SDL_FRect destRect = getDestRect({pos.x *2, (pos.y -sourceRect_.h)*2});
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 

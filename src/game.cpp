@@ -35,6 +35,51 @@ import tile;
 import sdlHelpers;
 import gui;
 
+struct Rad {
+  float value;
+
+  static constexpr float radConvertionRatio{std::numbers::pi / 180};
+  static constexpr auto fromDeg(float deg) -> Rad {
+    return {deg * radConvertionRatio};
+  }
+};
+
+struct PolarVec {
+  float radius;
+  Rad angle;
+};
+
+struct Vec {
+  constexpr Vec(const PolarVec &other)
+      : x{other.radius * std::cos(other.angle.value)},
+        y{other.radius * std::sin(other.angle.value)} {}
+
+  float x;
+  float y;
+};
+
+struct Point {
+  auto operator+(const Vec &other) const -> Point {
+    return {.x = x + other.x, .y = y + other.y};
+  }
+
+  auto operator+=(const Vec &other) noexcept -> Point & {
+    x += other.x;
+    y += other.y;
+    return *this;
+  }
+
+  auto asSdlPoint() -> SDL_FPoint { return {x, y}; }
+
+  float x;
+  float y;
+};
+
+struct PolarPoint {
+  float radius;
+  Rad angle;
+};
+
 /// an error occured while initializing
 class InitError : public std::exception {
 public:
@@ -56,33 +101,23 @@ private:
 
 class Character {
 public:
-  Character(float posX, float posY) : posX_{posX}, posY_{posY} {}
-  auto setPos(float newPosX, float newPosY) -> void {
-    posX_ = newPosX;
-    posY_ = newPosY;
-  }
-  auto updateAngle(float newAngle) -> void { angle_ = newAngle; }
-  auto updateSpeed(float newSpeed) -> void { speed_ = newSpeed; }
+  Character(const Point &pos) : pos_{pos} {}
+  auto setPos(const Point &newPos) -> void { pos_ = newPos; }
+  auto updateAngle(Rad newAngle) -> void { vec_.angle = newAngle; }
+  auto updateSpeed(float newSpeed) -> void { vec_.radius = newSpeed; }
 
   auto update(Uint64 deltaTime) -> void {
-    auto distance = static_cast<float>(deltaTime) * speed_;
-    auto angleRad = angle_ * std::numbers::pi / 180;
-    auto deltaX = distance * std::cos(angleRad);
-    auto deltaY = distance * std::sin(angleRad);
-    posX_ += static_cast<float>(deltaX);
-    posY_ += static_cast<float>(deltaY);
+    auto vec = PolarVec{.radius = static_cast<float>(deltaTime) * vec_.radius,
+                        .angle = vec_.angle};
+    pos_ += vec;
   }
 
-  [[nodiscard]] auto getPos() const -> SDL_FPoint {
-    return {posX_ * 2, posY_ * 2};
-  }
+  [[nodiscard]] auto getPos() const -> Point { return pos_; }
   static constexpr float speed{0.06};
 
 private:
-  float posX_;
-  float posY_;
-  float angle_{};
-  float speed_{};
+  Point pos_;
+  PolarVec vec_{};
 };
 
 /// an error occured while loading a texture
@@ -116,9 +151,12 @@ public:
   auto operator=(Game &&) -> Game & = delete;
 
   auto loadTexture(const char *path) -> SdlTexturePtr;
-  auto renderCharacterSelector();
+
+  /// process Sdl events
   auto processEvent();
+  /// process event in editor mode
   auto processEventEditor(const SDL_Event &event) -> bool;
+  /// process event for the character
   auto processEventCharacter(const SDL_Event &event) -> bool;
 
   auto loadEntities() -> void;
@@ -131,7 +169,7 @@ public:
   [[nodiscard]] auto done() const noexcept -> bool { return done_; }
 
 private:
-  static constexpr float gridSize{32};
+  static constexpr float gridSize{16};
   static constexpr Uint64 minFrameDuration{1000 / 30};
   static constexpr Uint32 minimizedDelay{10};
   static constexpr SDL_Point windowSize{1280, 720};
@@ -147,7 +185,7 @@ private:
 
   std::optional<Gui> gameGui_;
 
-  Character player{100, 100};
+  Character player_{{.x = 100, .y = 100}};
 
   std::vector<CharacterSprite> characters_;
   std::vector<CharacterSprite> enemies_;
@@ -232,8 +270,8 @@ auto Game::processEvent() {
 
     SDL_GetMouseState(&mousePos.x, &mousePos.y);
 
-    tileCursorPos_ = {.x = mousePos.x - std::fmod(mousePos.x, gridSize),
-                      .y = mousePos.y - std::fmod(mousePos.y, gridSize)};
+    tileCursorPos_ = {.x = mousePos.x - std::fmod(mousePos.x, gridSize * 2),
+                      .y = mousePos.y - std::fmod(mousePos.y, gridSize * 2)};
 
     if (event.type == SDL_EVENT_QUIT) {
       done_ = true;
@@ -270,20 +308,21 @@ auto Game::frame() -> void {
   processEvent();
 
   checkKeys();
-  player.update(fps);
+  player_.update(fps);
 
   SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
   SDL_RenderClear(renderer_);
 
   std::ranges::sort(map_);
-  std::ranges::sort(
-      mapWall_, [](auto &a, auto &b) { return a->getPos().y < b->getPos().y; });
+  std::ranges::sort(mapWall_, [](auto &lhs, auto &rhs) {
+    return lhs->getPos().y < rhs->getPos().y;
+  });
 
   showMap();
 
   if (gameGui_->isEditorMode() && showTileSelector_) {
-    SDL_FRect cursorRect{tileCursorPos_.x, tileCursorPos_.y, gridSize,
-                         gridSize};
+    SDL_FRect cursorRect{tileCursorPos_.x, tileCursorPos_.y, gridSize * 2,
+                         gridSize * 2};
     SDL_SetRenderDrawColor(renderer_, 150, 150, 150, 255);
     SDL_RenderRect(renderer_, &cursorRect);
   }
@@ -325,8 +364,10 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
   if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
       event.button.button == SDL_BUTTON_LEFT) {
     SDL_FPoint point;
-    point.x = event.button.x - std::fmod(event.button.x, gridSize);
-    point.y = event.button.y - std::fmod(event.button.y, gridSize) + gridSize;
+    point.x = (event.button.x - std::fmod(event.button.x, gridSize * 2)) / 2;
+    point.y = (event.button.y - std::fmod(event.button.y, gridSize * 2) +
+               gridSize * 2) /
+              2;
 
     auto tile = tiles_[gameGui_->getTileIndex()].build();
     tile->setPos(point);
@@ -345,8 +386,10 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
   if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
       event.button.button == SDL_BUTTON_RIGHT) {
     SDL_FPoint point;
-    point.x = event.button.x - std::fmod(event.button.x, gridSize);
-    point.y = event.button.y - std::fmod(event.button.y, gridSize) + gridSize;
+    point.x = (event.button.x - std::fmod(event.button.x, gridSize * 2)) / 2;
+    point.y = (event.button.y - std::fmod(event.button.y, gridSize * 2) +
+               gridSize * 2) /
+              2;
 
     if (gameGui_->isWall()) {
       std::erase_if(mapWall_,
@@ -371,42 +414,42 @@ auto Game::processEventCharacter(const SDL_Event &event) -> bool {
 
 auto Game::checkKeys() -> void {
   SDL_PumpEvents();
-  auto *keys = SDL_GetKeyboardState(nullptr);
+  const bool *keys = SDL_GetKeyboardState(nullptr);
 
   if (keys[SDL_SCANCODE_UP]) {
-    player.updateSpeed(Character::speed);
+    player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
-      player.updateAngle(135);
+      player_.updateAngle(Rad::fromDeg(135));
       characters_[gameGui_->getCharacterIndex()].setRunning(true);
     } else if (keys[SDL_SCANCODE_RIGHT]) {
-      player.updateAngle(45);
+      player_.updateAngle(Rad::fromDeg(45));
       characters_[gameGui_->getCharacterIndex()].setRunning(false);
     } else {
       characters_[gameGui_->getCharacterIndex()].setRunning();
-      player.updateAngle(90);
+      player_.updateAngle(Rad::fromDeg(90));
     }
   } else if (keys[SDL_SCANCODE_DOWN]) {
-    player.updateSpeed(Character::speed);
+    player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
       characters_[gameGui_->getCharacterIndex()].setRunning(true);
-      player.updateAngle(225);
+      player_.updateAngle(Rad::fromDeg(225));
     } else if (keys[SDL_SCANCODE_RIGHT]) {
       characters_[gameGui_->getCharacterIndex()].setRunning(false);
-      player.updateAngle(315);
+      player_.updateAngle(Rad::fromDeg(315));
     } else {
       characters_[gameGui_->getCharacterIndex()].setRunning();
-      player.updateAngle(270);
+      player_.updateAngle(Rad::fromDeg(270));
     }
   } else if (keys[SDL_SCANCODE_LEFT]) {
-    player.updateSpeed(Character::speed);
+    player_.updateSpeed(Character::speed);
     characters_[gameGui_->getCharacterIndex()].setRunning(true);
-    player.updateAngle(180);
+    player_.updateAngle(Rad::fromDeg(180));
   } else if (keys[SDL_SCANCODE_RIGHT]) {
-    player.updateSpeed(Character::speed);
+    player_.updateSpeed(Character::speed);
     characters_[gameGui_->getCharacterIndex()].setRunning(false);
-    player.updateAngle(0);
+    player_.updateAngle(Rad::fromDeg(0));
   } else {
-    player.updateSpeed(0);
+    player_.updateSpeed(0);
     characters_[gameGui_->getCharacterIndex()].setIdle();
   }
 }
@@ -418,7 +461,7 @@ auto Game::showMap() -> void {
   }
 
   auto &character = characters_[gameGui_->getCharacterIndex()];
-  character.setPos(player.getPos());
+  character.setPos(player_.getPos().asSdlPoint());
 
   auto crendered = false;
   for (auto &tile : mapWall_) {
@@ -432,8 +475,4 @@ auto Game::showMap() -> void {
     crendered = true;
     character.render(renderer_, texture_, frameCount_);
   }
-
-  SDL_SetRenderDrawColor(renderer_, 50, 250, 50, 255);
-  SDL_FRect r = {character.getPos().x, character.getPos().y, 16, 1};
-  SDL_RenderRect(renderer_, &r);
 }

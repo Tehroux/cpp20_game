@@ -39,7 +39,7 @@ auto StaticRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
                             const SDL_FRect &rect, const SDL_FPoint &pos,
                             size_t /*FrameCount*/) -> void {
 
-  SDL_FRect destRect{pos.x, pos.y - (rect.h * 2), rect.w * 2, rect.h * 2};
+  SDL_FRect destRect{pos.x*2, (pos.y - rect.h) * 2, rect.w * 2, rect.h * 2};
 
   SDL_RenderTexture(renderer, texture.get(), &rect, &destRect);
 }
@@ -97,7 +97,7 @@ auto AnimatedRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
     index_ = std::fmod(++index_, frameNumber);
   }
 
-  SDL_FRect destRect{pos.x, pos.y - (rect.h * 2), rect.w * 2, rect.h * 2};
+  SDL_FRect destRect{pos.x *2, (pos.y - rect.h )* 2, rect.w * 2, rect.h * 2};
 
   SDL_FRect sourceRect{(index_ * rect.w) + rect.x, rect.y, rect.w, rect.h};
 
@@ -120,7 +120,7 @@ public:
   auto setPos(const SDL_FPoint &pos) { renderablePos_ = pos; }
   [[nodiscard]] auto getPos() const -> SDL_FPoint {
     return {renderablePos_.x,
-            renderablePos_.y + (renderableLevel_ ? sourceRect_.h * 2 : 0)};
+            renderablePos_.y + (renderableLevel_ ? sourceRect_.h : 0)};
   }
 
   auto setLevel(bool level) -> void { renderableLevel_ = level; }
