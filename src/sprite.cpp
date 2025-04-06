@@ -40,13 +40,11 @@ public:
     this->running_ = true;
     direction_ = dir;
   }
-  auto setRunning() {
-    this->running_ = true;
-  }
+  auto setRunning() { this->running_ = true; }
   auto setIdle() { this->running_ = false; }
 
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
-      -> void override;
+  auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
+              size_t frameCount) -> void override;
 
 private:
   static constexpr float runFrameIndex = 4;
@@ -110,8 +108,9 @@ auto CharacterSprite::incIndex() {
   index_ = std::fmod(++index_, animationFrameNumber);
 }
 
-auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                             size_t frameCount) -> void {
+auto CharacterSprite::render(const SdlRenderer &renderer,
+                             const SdlTexturePtr &texture, size_t frameCount)
+    -> void {
   if (frameCount % 2 == 0) {
     incIndex();
   }
@@ -119,14 +118,14 @@ auto CharacterSprite::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
   auto pos = getPos();
 
   auto sourceRect_ = getSourceRect();
-  SDL_FRect destRect = getDestRect({pos.x *2, (pos.y -sourceRect_.h)*2});
+  SDL_FRect destRect = getDestRect({pos.x * 2, (pos.y - sourceRect_.h) * 2});
   SDL_FRect sourceRect = getTextureRect();
   SDL_FPoint center{0, 0};
 
   if (direction_) {
-    SDL_RenderTextureRotated(renderer, texture.get(), &sourceRect, &destRect, 0,
-                             &center, SDL_FLIP_HORIZONTAL);
+    renderer.renderTextureRotated(texture, sourceRect, destRect, 0, center,
+                                  SDL_FLIP_HORIZONTAL);
   } else {
-    SDL_RenderTexture(renderer, texture.get(), &sourceRect, &destRect);
+    renderer.renderTexture(texture, sourceRect, destRect);
   }
 }

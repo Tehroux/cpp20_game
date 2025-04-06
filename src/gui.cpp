@@ -1,3 +1,4 @@
+#include <utility>
 module;
 
 #include <backends/imgui_impl_sdl3.h>
@@ -22,11 +23,12 @@ import sprite;
 /// used to manage ImGui gui
 export class Gui {
 public:
+  Gui() = default;
   /// constructor
   ///
   /// \param[in] Window the window to render the Gui to
   /// \param[in] Renderer the renderer used to render to the window
-  Gui(SdlWindowPtr &window, SDL_Renderer *renderer);
+  Gui(const SdlWindow &window, SdlRenderer renderer);
 
   Gui(const Gui &) = default;
   Gui(Gui &&) = delete;
@@ -35,7 +37,8 @@ public:
 
   ~Gui();
 
-  auto render(SDL_Renderer *renderer, std::vector<CharacterSprite> &characters,
+  auto render(const SdlRenderer &renderer,
+              std::vector<CharacterSprite> &characters,
               std::vector<CharacterSprite> &enemies,
               std::vector<RendererBuilder> &tiles,
               std::vector<std::unique_ptr<Renderable>> &map,
@@ -85,8 +88,7 @@ private:
   size_t tileIndex_{};
 };
 
-Gui::Gui(SdlWindowPtr &window, SDL_Renderer *renderer) {
-
+Gui::Gui(const SdlWindow &window, SdlRenderer renderer) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   auto &imIo = ImGui::GetIO();
@@ -95,8 +97,7 @@ Gui::Gui(SdlWindowPtr &window, SDL_Renderer *renderer) {
 
   ImGui::StyleColorsDark();
 
-  ImGui_ImplSDL3_InitForSDLRenderer(window.get(), renderer);
-  ImGui_ImplSDLRenderer3_Init(renderer);
+  window.initForRenderer(renderer);
 }
 
 Gui::~Gui() {
@@ -105,7 +106,7 @@ Gui::~Gui() {
   ImGui::DestroyContext();
 }
 
-auto Gui::render(SDL_Renderer *renderer,
+auto Gui::render(const SdlRenderer &renderer,
                  std::vector<CharacterSprite> &characters,
                  std::vector<CharacterSprite> &enemies,
                  std::vector<RendererBuilder> &tiles,
@@ -134,7 +135,7 @@ auto Gui::render(SDL_Renderer *renderer,
   }
 
   ImGui::Render();
-  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+  renderer.imguiRenderDrawData();
 }
 
 auto Gui::processEvent(SDL_Event &event) -> bool {
@@ -149,11 +150,11 @@ auto Gui::renderComboBox(const char *name, Array &array, size_t &currentIndex)
   if (ImGui::BeginCombo(name, array[currentIndex].name().c_str())) {
     for (auto index = 0; index < array.size(); ++index) {
       if (ImGui::Selectable(array[index].name().c_str(),
-                            currentIndex == index)) {
+                            std::cmp_equal(currentIndex, index))) {
         currentIndex = index;
       }
 
-      if (currentIndex == index) {
+      if (std::cmp_equal(currentIndex, index)) {
         ImGui::SetItemDefaultFocus();
       }
     }

@@ -9,7 +9,6 @@ module;
 #include "SDL3/SDL_keycode.h"
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_stdinc.h"
-#include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
 #include <SDL3/SDL.h>
@@ -23,9 +22,8 @@ module;
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <optional>
+#include <span>
 #include <string>
-#include <string_view>
 #include <vector>
 
 export module game;
@@ -80,28 +78,10 @@ struct PolarPoint {
   Rad angle;
 };
 
-/// an error occured while initializing
-class InitError : public std::exception {
-public:
-  /// constructor
-  ///
-  /// \param[in] ErrorMessage the error message
-  InitError(std::string_view errorMessage) : errorMessage_(errorMessage) {}
-
-  /// get the error message
-  ///
-  /// \return the error message
-  [[nodiscard]] auto what() const noexcept -> const char * override {
-    return errorMessage_.c_str();
-  }
-
-private:
-  std::string errorMessage_; ///< the error message
-};
-
 class Character {
 public:
-  Character(const Point &pos) : pos_{pos} {}
+  Character(const Point &pos, CharacterSprite *renderable)
+      : pos_{pos}, renderable_{renderable} {}
   auto setPos(const Point &newPos) -> void { pos_ = newPos; }
   auto updateAngle(Rad newAngle) -> void { vec_.angle = newAngle; }
   auto updateSpeed(float newSpeed) -> void { vec_.radius = newSpeed; }
@@ -112,32 +92,20 @@ public:
     pos_ += vec;
   }
 
+  [[nodiscard]] auto getRenderable() const noexcept -> CharacterSprite * {
+    return renderable_;
+  };
+  auto setRenderable(CharacterSprite *newRenderable) noexcept -> void {
+    renderable_ = newRenderable;
+  };
+
   [[nodiscard]] auto getPos() const -> Point { return pos_; }
   static constexpr float speed{0.06};
 
 private:
   Point pos_;
   PolarVec vec_{};
-};
-
-/// an error occured while loading a texture
-class TextureLoadingError : public std::exception {
-public:
-  /// constructor
-  ///
-  /// \param[in] ErrorMessage the error message
-  TextureLoadingError(std::string_view errorMessage)
-      : errorMessage_(errorMessage) {}
-
-  /// get the error message
-  ///
-  /// \return the error message
-  [[nodiscard]] auto what() const noexcept -> const char * override {
-    return errorMessage_.c_str();
-  }
-
-private:
-  std::string errorMessage_; ///< the error message
+  CharacterSprite *renderable_;
 };
 
 export class Game final {
@@ -150,21 +118,19 @@ public:
   auto operator=(const Game &) -> Game & = delete;
   auto operator=(Game &&) -> Game & = delete;
 
-  auto loadTexture(const char *path) -> SdlTexturePtr;
-
   /// process Sdl events
-  auto processEvent();
+  auto processEvent() noexcept -> void;
   /// process event in editor mode
-  auto processEventEditor(const SDL_Event &event) -> bool;
+  auto processEventEditor(const SDL_Event &event) noexcept -> bool;
   /// process event for the character
-  auto processEventCharacter(const SDL_Event &event) -> bool;
+  auto processEventCharacter(const SDL_Event &event) noexcept -> bool;
 
-  auto loadEntities() -> void;
+  auto loadEntities() noexcept -> void;
 
-  auto showMap() -> void;
+  auto showMap() noexcept -> void;
 
   auto frame() -> void;
-  auto checkKeys() -> void;
+  auto checkKeys() noexcept -> void;
 
   [[nodiscard]] auto done() const noexcept -> bool { return done_; }
 
@@ -173,19 +139,19 @@ private:
   static constexpr Uint64 minFrameDuration{1000 / 30};
   static constexpr Uint32 minimizedDelay{10};
   static constexpr SDL_Point windowSize{1280, 720};
+  static constexpr Point playerStartingPoint{.x = 100, .y = 100};
 
-  SdlWindowPtr window_{nullptr, SDL_DestroyWindow};
+  SdlWindow window_{"My Game", windowSize, SDL_WINDOW_HIDDEN};
+  SdlRenderer renderer_{window_.createRenderer()};
+  Gui gameGui_{window_, renderer_};
+
   bool done_{};
-
-  SDL_Renderer *renderer_;
 
   size_t frameCount_{};
   SdlTexturePtr texture_{nullptr, SDL_DestroyTexture};
   Uint32 last_{};
 
-  std::optional<Gui> gameGui_;
-
-  Character player_{{.x = 100, .y = 100}};
+  Character player_{playerStartingPoint, nullptr};
 
   std::vector<CharacterSprite> characters_;
   std::vector<CharacterSprite> enemies_;
@@ -202,35 +168,18 @@ Game::Game() {
     throw InitError{std::format("SDL_Init(): {}", SDL_GetError())};
   }
 
-  static constexpr Uint32 windowFlags = SDL_WINDOW_HIDDEN;
+  window_.setPosition(SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  window_.showWindow();
 
-  window_ = {
-      SDL_CreateWindow("My app", windowSize.x, windowSize.y, windowFlags),
-      SDL_DestroyWindow};
-  if (!window_) {
-    throw InitError{std::format("SDL_CreateWindow(): {}", SDL_GetError())};
-  }
-
-  renderer_ = SDL_CreateRenderer(window_.get(), nullptr);
-  SDL_SetRenderVSync(renderer_, 1);
-  if (renderer_ == nullptr) {
-    throw InitError{std::format("SDL_CreateRenderer(): {}", SDL_GetError())};
-  }
-
-  SDL_SetWindowPosition(window_.get(), SDL_WINDOWPOS_CENTERED,
-                        SDL_WINDOWPOS_CENTERED);
-  SDL_ShowWindow(window_.get());
-
-  texture_ = loadTexture(
+  texture_ = renderer_.createTextureFromPath(
       "rsrc/0x72_DungeonTilesetII_v1.7/0x72_DungeonTilesetII_v1.7.png");
 
   loadEntities();
-  gameGui_.emplace(window_, renderer_);
 }
 
 Game::~Game() { SDL_Quit(); }
 
-auto Game::loadEntities() -> void {
+auto Game::loadEntities() noexcept -> void {
   std::ifstream textureIndex;
   textureIndex.open("rsrc/0x72_DungeonTilesetII_v1.7/tile_list_v1.7.cpy");
   while (!textureIndex.eof()) {
@@ -256,7 +205,7 @@ auto Game::loadEntities() -> void {
   }
 }
 
-auto Game::processEvent() {
+auto Game::processEvent() noexcept -> void {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
 
@@ -277,11 +226,11 @@ auto Game::processEvent() {
       done_ = true;
     }
     if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-        event.window.windowID == SDL_GetWindowID(window_.get())) {
+        event.window.windowID == window_.getWindowID()) {
       done_ = true;
     }
 
-    if (gameGui_->isEditorMode() && processEventEditor(event)) {
+    if (gameGui_.isEditorMode() && processEventEditor(event)) {
       return;
     }
 
@@ -298,20 +247,22 @@ auto Game::frame() -> void {
   } else {
     return;
   }
-  gameGui_->frameRenderingDuration(fps);
+  gameGui_.frameRenderingDuration(fps);
 
-  if (SDL_WINDOW_MINIMIZED & SDL_GetWindowFlags(window_.get())) {
+  if (SDL_WINDOW_MINIMIZED & window_.getWindowFlags()) {
     SDL_Delay(minimizedDelay);
     return;
   }
 
   processEvent();
+  player_.setRenderable(&characters_[gameGui_.getCharacterIndex()]);
 
   checkKeys();
   player_.update(fps);
 
-  SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
-  SDL_RenderClear(renderer_);
+  constexpr SDL_Color clearColor{0, 0, 0, 255};
+  renderer_.setRenderDrawColor(clearColor);
+  renderer_.renderClear();
 
   std::ranges::sort(map_);
   std::ranges::sort(mapWall_, [](auto &lhs, auto &rhs) {
@@ -320,47 +271,24 @@ auto Game::frame() -> void {
 
   showMap();
 
-  if (gameGui_->isEditorMode() && showTileSelector_) {
+  if (gameGui_.isEditorMode() && showTileSelector_) {
     SDL_FRect cursorRect{tileCursorPos_.x, tileCursorPos_.y, gridSize * 2,
                          gridSize * 2};
-    SDL_SetRenderDrawColor(renderer_, 150, 150, 150, 255);
-    SDL_RenderRect(renderer_, &cursorRect);
+
+    constexpr SDL_Color cursorColor{150, 150, 150, 255};
+    renderer_.setRenderDrawColor(cursorColor);
+    renderer_.renderRect(cursorRect);
   }
 
-  enemies_[gameGui_->getEnemyIndex()].setPos({300, 100});
-  enemies_[gameGui_->getEnemyIndex()].render(renderer_, texture_, frameCount_);
+  constexpr SDL_FPoint enemyPos{300, 100};
+  enemies_[gameGui_.getEnemyIndex()].setPos(enemyPos);
+  enemies_[gameGui_.getEnemyIndex()].render(renderer_, texture_, frameCount_);
 
-  gameGui_->render(renderer_, characters_, enemies_, tiles_, map_, mapWall_);
-  SDL_RenderPresent(renderer_);
+  gameGui_.render(renderer_, characters_, enemies_, tiles_, map_, mapWall_);
+  renderer_.renderPresent();
 }
 
-auto Game::loadTexture(const char *path) -> SdlTexturePtr {
-
-  auto *iostr = SDL_IOFromFile(path, "r");
-  if (iostr == nullptr) {
-    throw TextureLoadingError{
-        std::format("SDL_IOFromFile(): {}", SDL_GetError())};
-  }
-
-  SdlSurfacePtr surfaceWizard{IMG_LoadPNG_IO(iostr), SDL_DestroySurface};
-  if (!surfaceWizard) {
-    throw TextureLoadingError{
-        std::format("IMG_LoadPNG_IO(): {}", SDL_GetError())};
-  }
-
-  SdlTexturePtr texture = {
-      SDL_CreateTextureFromSurface(renderer_, surfaceWizard.get()),
-      SDL_DestroyTexture};
-  if (!texture) {
-    throw TextureLoadingError{
-        std::format("SDL_CreateTextureFromSurface(): {}", SDL_GetError())};
-  }
-
-  SDL_SetTextureScaleMode(texture.get(), SDL_SCALEMODE_NEAREST);
-  return texture;
-}
-
-auto Game::processEventEditor(const SDL_Event &event) -> bool {
+auto Game::processEventEditor(const SDL_Event &event) noexcept -> bool {
   if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
       event.button.button == SDL_BUTTON_LEFT) {
     SDL_FPoint point;
@@ -369,10 +297,10 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
                gridSize * 2) /
               2;
 
-    auto tile = tiles_[gameGui_->getTileIndex()].build();
+    auto tile = tiles_[gameGui_.getTileIndex()].build();
     tile->setPos(point);
-    if (gameGui_->isWall()) {
-      tile->setLevel(gameGui_->isLevel());
+    if (gameGui_.isWall()) {
+      tile->setLevel(gameGui_.isLevel());
       std::erase_if(mapWall_,
                     [point](auto &tile) { return tile->isSamePos(point); });
       mapWall_.push_back(std::move(tile));
@@ -391,7 +319,7 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
                gridSize * 2) /
               2;
 
-    if (gameGui_->isWall()) {
+    if (gameGui_.isWall()) {
       std::erase_if(mapWall_,
                     [point](auto &tile) { return tile->isSamePos(point); });
     } else {
@@ -403,64 +331,75 @@ auto Game::processEventEditor(const SDL_Event &event) -> bool {
   return false;
 }
 
-auto Game::processEventCharacter(const SDL_Event &event) -> bool {
+auto Game::processEventCharacter(const SDL_Event &event) noexcept -> bool {
 
   if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_A) {
-    characters_[gameGui_->getCharacterIndex()].setHit();
+    player_.getRenderable()->setHit();
     return true;
   }
   return false;
 }
 
-auto Game::checkKeys() -> void {
+auto Game::checkKeys() noexcept -> void {
   SDL_PumpEvents();
-  const bool *keys = SDL_GetKeyboardState(nullptr);
+  int ksize{0};
+  const bool *kptr = SDL_GetKeyboardState(&ksize);
+  const std::span keys{kptr, static_cast<size_t>(ksize)};
+
+  constexpr Rad upLeft{Rad::fromDeg(135)};
+  constexpr Rad upRight{Rad::fromDeg(45)};
+  constexpr Rad up{Rad::fromDeg(90)};
+  constexpr Rad downLeft{Rad::fromDeg(255)};
+  constexpr Rad downRight{Rad::fromDeg(315)};
+  constexpr Rad down{Rad::fromDeg(270)};
+  constexpr Rad left{Rad::fromDeg(180)};
+  constexpr Rad right{Rad::fromDeg(0)};
 
   if (keys[SDL_SCANCODE_UP]) {
     player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
-      player_.updateAngle(Rad::fromDeg(135));
-      characters_[gameGui_->getCharacterIndex()].setRunning(true);
+      player_.updateAngle(upLeft);
+      player_.getRenderable()->setRunning(true);
     } else if (keys[SDL_SCANCODE_RIGHT]) {
-      player_.updateAngle(Rad::fromDeg(45));
-      characters_[gameGui_->getCharacterIndex()].setRunning(false);
+      player_.updateAngle(upRight);
+      player_.getRenderable()->setRunning(false);
     } else {
-      characters_[gameGui_->getCharacterIndex()].setRunning();
-      player_.updateAngle(Rad::fromDeg(90));
+      player_.getRenderable()->setRunning();
+      player_.updateAngle(up);
     }
   } else if (keys[SDL_SCANCODE_DOWN]) {
     player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
-      characters_[gameGui_->getCharacterIndex()].setRunning(true);
-      player_.updateAngle(Rad::fromDeg(225));
+      player_.getRenderable()->setRunning(true);
+      player_.updateAngle(downLeft);
     } else if (keys[SDL_SCANCODE_RIGHT]) {
-      characters_[gameGui_->getCharacterIndex()].setRunning(false);
-      player_.updateAngle(Rad::fromDeg(315));
+      player_.getRenderable()->setRunning(false);
+      player_.updateAngle(downRight);
     } else {
-      characters_[gameGui_->getCharacterIndex()].setRunning();
-      player_.updateAngle(Rad::fromDeg(270));
+      player_.getRenderable()->setRunning();
+      player_.updateAngle(down);
     }
   } else if (keys[SDL_SCANCODE_LEFT]) {
     player_.updateSpeed(Character::speed);
-    characters_[gameGui_->getCharacterIndex()].setRunning(true);
-    player_.updateAngle(Rad::fromDeg(180));
+    player_.getRenderable()->setRunning(true);
+    player_.updateAngle(left);
   } else if (keys[SDL_SCANCODE_RIGHT]) {
     player_.updateSpeed(Character::speed);
-    characters_[gameGui_->getCharacterIndex()].setRunning(false);
-    player_.updateAngle(Rad::fromDeg(0));
+    player_.getRenderable()->setRunning(false);
+    player_.updateAngle(right);
   } else {
     player_.updateSpeed(0);
-    characters_[gameGui_->getCharacterIndex()].setIdle();
+    player_.getRenderable()->setIdle();
   }
 }
 
-auto Game::showMap() -> void {
+auto Game::showMap() noexcept -> void {
 
-  for (auto &tile : map_) {
+  for (const auto &tile : map_) {
     tile->render(renderer_, texture_, frameCount_);
   }
 
-  auto &character = characters_[gameGui_->getCharacterIndex()];
+  auto &character = characters_[gameGui_.getCharacterIndex()];
   character.setPos(player_.getPos().asSdlPoint());
 
   auto crendered = false;

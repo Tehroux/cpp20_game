@@ -13,8 +13,9 @@ import sdlHelpers;
 /// renderer concept
 export template <class Type>
 concept isRenderer =
-    requires(Type type, SDL_Renderer *renderer, SdlTexturePtr &texture,
-             const SDL_FRect &rect, const SDL_FPoint &pos, size_t frameCount) {
+    requires(Type type, const SdlRenderer &renderer,
+             const SdlTexturePtr &texture, const SDL_FRect &rect,
+             const SDL_FPoint &pos, size_t frameCount) {
       { type.render(renderer, texture, rect, pos, frameCount) };
     };
 
@@ -30,18 +31,20 @@ public:
   /// \param[in] Pos the position on the screen where to render the static
   /// sprite
   /// \param[in] FrameCount the number of frame already rendered
-  static auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+  static auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
                      const SDL_FRect &rect, const SDL_FPoint &pos,
                      size_t frameCount) -> void;
 };
 
-auto StaticRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                            const SDL_FRect &rect, const SDL_FPoint &pos,
-                            size_t /*FrameCount*/) -> void {
+auto StaticRenderer::render(const SdlRenderer &renderer,
+                            const SdlTexturePtr &texture, const SDL_FRect &rect,
+                            const SDL_FPoint &pos, size_t /*FrameCount*/)
+    -> void {
 
-  SDL_FRect destRect{pos.x*2, (pos.y - rect.h) * 2, rect.w * 2, rect.h * 2};
+  const SDL_FRect destRect{pos.x * 2, (pos.y - rect.h) * 2, rect.w * 2,
+                           rect.h * 2};
 
-  SDL_RenderTexture(renderer, texture.get(), &rect, &destRect);
+  renderer.renderTexture(texture, rect, destRect);
 }
 
 namespace {
@@ -64,7 +67,7 @@ public:
   /// \param[in] Pos the position on the screen where to render the animation
   /// sprite
   /// \param[in] FrameCount the number of frame already rendered
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+  auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
               const SDL_FRect &sourceRect, const SDL_FPoint &pos,
               size_t frameCount) -> void;
 
@@ -88,7 +91,8 @@ auto operator<<(std::ostream &ostream, const AnimatedRenderer & /*unused*/)
 }
 } // namespace
 
-auto AnimatedRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+auto AnimatedRenderer::render(const SdlRenderer &renderer,
+                              const SdlTexturePtr &texture,
                               const SDL_FRect &rect, const SDL_FPoint &pos,
                               size_t frameCount) -> void {
 
@@ -97,11 +101,11 @@ auto AnimatedRenderer::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
     index_ = std::fmod(++index_, frameNumber);
   }
 
-  SDL_FRect destRect{pos.x *2, (pos.y - rect.h )* 2, rect.w * 2, rect.h * 2};
+  const SDL_FRect destRect{pos.x * 2, (pos.y - rect.h) * 2, rect.w * 2, rect.h * 2};
 
-  SDL_FRect sourceRect{(index_ * rect.w) + rect.x, rect.y, rect.w, rect.h};
+  const SDL_FRect sourceRect{(index_ * rect.w) + rect.x, rect.y, rect.w, rect.h};
 
-  SDL_RenderTexture(renderer, texture.get(), &sourceRect, &destRect);
+  renderer.renderTexture(texture, sourceRect, destRect);
 }
 
 export class Renderable {
@@ -141,7 +145,7 @@ public:
   /// \param[in] Renderer the renderer used to render the renderable
   /// \param[in] Texture the texture containing the Renderable sprite
   /// \param[in] FrameCount the number of frame already drawn to the screen
-  virtual auto render(SDL_Renderer *renderer, SdlTexturePtr &texture,
+  virtual auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
                       size_t frameCount) -> void = 0;
 
   /// serialize the Renderable to an ostream
@@ -154,7 +158,9 @@ protected:
   [[nodiscard]] auto getRenderablePos() const -> SDL_FPoint {
     return renderablePos_;
   }
-  [[nodiscard]] auto getSourceRect() const -> const SDL_FRect& { return sourceRect_; }
+  [[nodiscard]] auto getSourceRect() const -> const SDL_FRect & {
+    return sourceRect_;
+  }
   [[nodiscard]] auto getRenderableLevel() const -> bool {
     return renderableLevel_;
   }
@@ -205,8 +211,8 @@ public:
   /// \param[in] Renderer the renderer used to render to the screen
   /// \param[in] Texture the texture to get the renderable sprite from
   /// \param[in] FrameCount the number of frame already drawn
-  auto render(SDL_Renderer *renderer, SdlTexturePtr &texture, size_t frameCount)
-      -> void override;
+  auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
+              size_t frameCount) -> void override;
 
   /// serialize the Renderable to an output stream
   ///
@@ -230,8 +236,9 @@ Tile<R>::Tile(const std::string &name, const SDL_FRect &rect)
 
 template <class RendererType>
   requires isRenderer<RendererType>
-auto Tile<RendererType>::render(SDL_Renderer *renderer, SdlTexturePtr &texture,
-                                size_t frameCount) -> void {
+auto Tile<RendererType>::render(const SdlRenderer &renderer,
+                                const SdlTexturePtr &texture, size_t frameCount)
+    -> void {
   tileRenderer_.render(renderer, texture, getSourceRect(), getRenderablePos(),
                        frameCount);
 }
