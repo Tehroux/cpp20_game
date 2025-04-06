@@ -1,10 +1,10 @@
 import game;
 
-auto main(int, char **) -> int {
-  Game GameInstance;
+auto main(int  /*argc*/, char * /*argv*/[]) -> int {
+  Game gameInstance;
 
-  while (!GameInstance.done()) {
-    GameInstance.frame();
+  while (!gameInstance.done()) {
+    gameInstance.frame();
   }
   return 0;
 }

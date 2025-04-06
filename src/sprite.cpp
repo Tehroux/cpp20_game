@@ -1,13 +1,11 @@
 module;
 
 #include "SDL3/SDL_rect.h"
-#include "SDL3/SDL_render.h"
 
 #include <SDL3_image/SDL_image.h>
 
 #include <cmath>
 #include <string>
-#include <utility>
 
 export module sprite;
 import tile;
@@ -117,15 +115,15 @@ auto CharacterSprite::render(const SdlRenderer &renderer,
 
   auto pos = getPos();
 
-  auto sourceRect_ = getSourceRect();
-  SDL_FRect destRect = getDestRect({pos.x * 2, (pos.y - sourceRect_.h) * 2});
-  SDL_FRect sourceRect = getTextureRect();
-  SDL_FPoint center{0, 0};
+  const auto sourceRect = getSourceRect();
+  const auto destRect = getDestRect({pos.x * 2, (pos.y - sourceRect.h) * 2});
+  const auto sourceTextureRect = getTextureRect();
 
   if (direction_) {
-    renderer.renderTextureRotated(texture, sourceRect, destRect, 0, center,
-                                  SDL_FLIP_HORIZONTAL);
+    const SDL_FPoint center{0, 0};
+    renderer.renderTextureRotated(texture, sourceTextureRect, destRect, 0,
+                                  center, SDL_FLIP_HORIZONTAL);
   } else {
-    renderer.renderTexture(texture, sourceRect, destRect);
+    renderer.renderTexture(texture, sourceTextureRect, destRect);
   }
 }

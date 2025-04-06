@@ -1,4 +1,4 @@
-Checks: '-*,clang-diagnostic-*,,misc-*,readability-*,modernize-*,performance-*,clang-analizer-*,bugprone-*,cppcoreguidelines-*'
+Checks: '-*,clang-diagnostic-*,misc-*,-misc-include-cleaner,readability-*,modernize-*,performance-*,clang-analizer-*,bugprone-*,cppcoreguidelines-*'
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
     value:           CamelCase

@@ -82,29 +82,51 @@ class Character {
 public:
   Character(const Point &pos, CharacterSprite *renderable)
       : pos_{pos}, renderable_{renderable} {}
-  auto setPos(const Point &newPos) -> void { pos_ = newPos; }
-  auto updateAngle(Rad newAngle) -> void { vec_.angle = newAngle; }
-  auto updateSpeed(float newSpeed) -> void { vec_.radius = newSpeed; }
 
-  auto update(Uint64 deltaTime) -> void {
-    auto vec = PolarVec{.radius = static_cast<float>(deltaTime) * vec_.radius,
-                        .angle = vec_.angle};
+  /// set the position of the character
+  auto setPos(const Point &newPos) noexcept -> void { pos_ = newPos; }
+
+  /// set a new direction
+  auto updateAngle(Rad newAngle) noexcept -> void { vec_.angle = newAngle; }
+
+  /// set a new speed
+  auto updateSpeed(float newSpeed) noexcept -> void { vec_.radius = newSpeed; }
+
+  /// update the position of the character
+  /// \param[in] deltaTime the time since the last update
+  auto update(Uint64 deltaTime) noexcept -> void {
+    const auto vec =
+        PolarVec{.radius = static_cast<float>(deltaTime) * vec_.radius,
+                 .angle = vec_.angle};
     pos_ += vec;
   }
 
+  /// get the renderable
   [[nodiscard]] auto getRenderable() const noexcept -> CharacterSprite * {
     return renderable_;
   };
+
+  /// set the renderable
   auto setRenderable(CharacterSprite *newRenderable) noexcept -> void {
     renderable_ = newRenderable;
   };
 
-  [[nodiscard]] auto getPos() const -> Point { return pos_; }
+  /// update the renderable position
+  auto updateRenderable() noexcept -> void {
+    renderable_->setPos(pos_.asSdlPoint());
+  }
+
+  /// get the position of the character
+  [[nodiscard]] auto getPos() const noexcept -> Point { return pos_; }
+
   static constexpr float speed{0.06};
 
 private:
+  /// character position
   Point pos_;
+  /// direction vector
   PolarVec vec_{};
+  /// graphic renderable
   CharacterSprite *renderable_;
 };
 
@@ -127,7 +149,7 @@ public:
 
   auto loadEntities() noexcept -> void;
 
-  auto showMap() noexcept -> void;
+  auto render() noexcept -> void;
 
   auto frame() -> void;
   auto checkKeys() noexcept -> void;
@@ -158,6 +180,8 @@ private:
   std::vector<RendererBuilder> tiles_;
   std::vector<std::unique_ptr<Renderable>> map_;
   std::vector<std::unique_ptr<Renderable>> mapWall_;
+
+  std::vector<Renderable *> toRender_;
 
   SDL_FPoint tileCursorPos_{};
   bool showTileSelector_{};
@@ -247,6 +271,7 @@ auto Game::frame() -> void {
   } else {
     return;
   }
+
   gameGui_.frameRenderingDuration(fps);
 
   if (SDL_WINDOW_MINIMIZED & window_.getWindowFlags()) {
@@ -255,34 +280,24 @@ auto Game::frame() -> void {
   }
 
   processEvent();
-  player_.setRenderable(&characters_[gameGui_.getCharacterIndex()]);
-
   checkKeys();
+
   player_.update(fps);
 
   constexpr SDL_Color clearColor{0, 0, 0, 255};
   renderer_.setRenderDrawColor(clearColor);
   renderer_.renderClear();
 
-  std::ranges::sort(map_);
-  std::ranges::sort(mapWall_, [](auto &lhs, auto &rhs) {
-    return lhs->getPos().y < rhs->getPos().y;
-  });
-
-  showMap();
+  render();
 
   if (gameGui_.isEditorMode() && showTileSelector_) {
-    SDL_FRect cursorRect{tileCursorPos_.x, tileCursorPos_.y, gridSize * 2,
-                         gridSize * 2};
+    const SDL_FRect cursorRect{tileCursorPos_.x, tileCursorPos_.y, gridSize * 2,
+                               gridSize * 2};
 
     constexpr SDL_Color cursorColor{150, 150, 150, 255};
     renderer_.setRenderDrawColor(cursorColor);
     renderer_.renderRect(cursorRect);
   }
-
-  constexpr SDL_FPoint enemyPos{300, 100};
-  enemies_[gameGui_.getEnemyIndex()].setPos(enemyPos);
-  enemies_[gameGui_.getEnemyIndex()].render(renderer_, texture_, frameCount_);
 
   gameGui_.render(renderer_, characters_, enemies_, tiles_, map_, mapWall_);
   renderer_.renderPresent();
@@ -346,72 +361,72 @@ auto Game::checkKeys() noexcept -> void {
   const bool *kptr = SDL_GetKeyboardState(&ksize);
   const std::span keys{kptr, static_cast<size_t>(ksize)};
 
-  constexpr Rad upLeft{Rad::fromDeg(135)};
-  constexpr Rad upRight{Rad::fromDeg(45)};
-  constexpr Rad up{Rad::fromDeg(90)};
-  constexpr Rad downLeft{Rad::fromDeg(255)};
-  constexpr Rad downRight{Rad::fromDeg(315)};
-  constexpr Rad down{Rad::fromDeg(270)};
-  constexpr Rad left{Rad::fromDeg(180)};
-  constexpr Rad right{Rad::fromDeg(0)};
+  constexpr Rad dirUpLeft{Rad::fromDeg(135)};
+  constexpr Rad dirUpRight{Rad::fromDeg(45)};
+  constexpr Rad dirUp{Rad::fromDeg(90)};
+  constexpr Rad dirDownLeft{Rad::fromDeg(255)};
+  constexpr Rad dirDownRight{Rad::fromDeg(315)};
+  constexpr Rad dirDown{Rad::fromDeg(270)};
+  constexpr Rad dirLeft{Rad::fromDeg(180)};
+  constexpr Rad dirRight{Rad::fromDeg(0)};
 
   if (keys[SDL_SCANCODE_UP]) {
     player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
-      player_.updateAngle(upLeft);
+      player_.updateAngle(dirUpLeft);
       player_.getRenderable()->setRunning(true);
     } else if (keys[SDL_SCANCODE_RIGHT]) {
-      player_.updateAngle(upRight);
+      player_.updateAngle(dirUpRight);
       player_.getRenderable()->setRunning(false);
     } else {
       player_.getRenderable()->setRunning();
-      player_.updateAngle(up);
+      player_.updateAngle(dirUp);
     }
   } else if (keys[SDL_SCANCODE_DOWN]) {
     player_.updateSpeed(Character::speed);
     if (keys[SDL_SCANCODE_LEFT]) {
       player_.getRenderable()->setRunning(true);
-      player_.updateAngle(downLeft);
+      player_.updateAngle(dirDownLeft);
     } else if (keys[SDL_SCANCODE_RIGHT]) {
       player_.getRenderable()->setRunning(false);
-      player_.updateAngle(downRight);
+      player_.updateAngle(dirDownRight);
     } else {
       player_.getRenderable()->setRunning();
-      player_.updateAngle(down);
+      player_.updateAngle(dirDown);
     }
   } else if (keys[SDL_SCANCODE_LEFT]) {
     player_.updateSpeed(Character::speed);
     player_.getRenderable()->setRunning(true);
-    player_.updateAngle(left);
+    player_.updateAngle(dirLeft);
   } else if (keys[SDL_SCANCODE_RIGHT]) {
     player_.updateSpeed(Character::speed);
     player_.getRenderable()->setRunning(false);
-    player_.updateAngle(right);
+    player_.updateAngle(dirRight);
   } else {
     player_.updateSpeed(0);
     player_.getRenderable()->setIdle();
   }
 }
 
-auto Game::showMap() noexcept -> void {
-
+auto Game::render() noexcept -> void {
   for (const auto &tile : map_) {
     tile->render(renderer_, texture_, frameCount_);
   }
 
-  auto &character = characters_[gameGui_.getCharacterIndex()];
-  character.setPos(player_.getPos().asSdlPoint());
-
-  auto crendered = false;
-  for (auto &tile : mapWall_) {
-    if (!crendered && tile->getPos().y > character.getPos().y) {
-      crendered = true;
-      character.render(renderer_, texture_, frameCount_);
-    }
-    tile->render(renderer_, texture_, frameCount_);
+  toRender_.clear();
+  for (const auto &item : mapWall_) {
+    toRender_.push_back(item.get());
   }
-  if (!crendered) {
-    crendered = true;
-    character.render(renderer_, texture_, frameCount_);
+
+  player_.setRenderable(&characters_[gameGui_.getCharacterIndex()]);
+  player_.updateRenderable();
+  toRender_.push_back(player_.getRenderable());
+
+  std::ranges::sort(toRender_, [](auto &lhs, auto &rhs) {
+    return lhs->getPos().y < rhs->getPos().y;
+  });
+
+  for (const auto &tile : toRender_) {
+    tile->render(renderer_, texture_, frameCount_);
   }
 }
