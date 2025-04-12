@@ -8,6 +8,7 @@ module;
 #include "SDL3/SDL_keyboard.h"
 #include "SDL3/SDL_keycode.h"
 #include "SDL3/SDL_rect.h"
+#include "SDL3/SDL_scancode.h"
 #include "SDL3/SDL_stdinc.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
@@ -113,7 +114,8 @@ public:
 
   /// update the renderable position
   auto updateRenderable() noexcept -> void {
-    renderable_->setPos(pos_.asSdlPoint());
+    if (renderable_)
+      renderable_->setPos(pos_.asSdlPoint());
   }
 
   /// get the position of the character
@@ -178,8 +180,8 @@ private:
   std::vector<CharacterSprite> characters_;
   std::vector<CharacterSprite> enemies_;
   std::vector<RendererBuilder> tiles_;
-  std::vector<std::unique_ptr<Renderable>> map_;
-  std::vector<std::unique_ptr<Renderable>> mapWall_;
+  std::vector<std::unique_ptr<TileConcrete>> map_;
+  std::vector<std::unique_ptr<TileConcrete>> mapWall_;
 
   std::vector<Renderable *> toRender_;
 
@@ -280,6 +282,7 @@ auto Game::frame() -> void {
   }
 
   processEvent();
+
   checkKeys();
 
   player_.update(fps);
@@ -312,17 +315,15 @@ auto Game::processEventEditor(const SDL_Event &event) noexcept -> bool {
                gridSize * 2) /
               2;
 
-    auto tile = tiles_[gameGui_.getTileIndex()].build();
-    tile->setPos(point);
+    auto tile = tiles_[gameGui_.getTileIndex()];
     if (gameGui_.isWall()) {
-      tile->setLevel(gameGui_.isLevel());
       std::erase_if(mapWall_,
                     [point](auto &tile) { return tile->isSamePos(point); });
-      mapWall_.push_back(std::move(tile));
+      mapWall_.push_back(tile.build(point, gameGui_.isLevel()));
     } else {
       std::erase_if(map_,
                     [point](auto &tile) { return tile->isSamePos(point); });
-      map_.push_back(std::move(tile));
+      map_.push_back(tile.build(point, gameGui_.isLevel()));
     }
     return true;
   }
@@ -357,9 +358,10 @@ auto Game::processEventCharacter(const SDL_Event &event) noexcept -> bool {
 
 auto Game::checkKeys() noexcept -> void {
   SDL_PumpEvents();
+
   int ksize{0};
   const bool *kptr = SDL_GetKeyboardState(&ksize);
-  const std::span keys{kptr, static_cast<size_t>(ksize)};
+  const std::span<const bool> keys{kptr, static_cast<size_t>(ksize)};
 
   constexpr Rad dirUpLeft{Rad::fromDeg(135)};
   constexpr Rad dirUpRight{Rad::fromDeg(45)};
@@ -404,7 +406,8 @@ auto Game::checkKeys() noexcept -> void {
     player_.updateAngle(dirRight);
   } else {
     player_.updateSpeed(0);
-    player_.getRenderable()->setIdle();
+    if (player_.getRenderable())
+      player_.getRenderable()->setIdle();
   }
 }
 

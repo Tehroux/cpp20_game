@@ -1,5 +1,6 @@
 module;
 
+#include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 
 #include <cmath>
@@ -101,17 +102,18 @@ auto AnimatedRenderer::render(const SdlRenderer &renderer,
     index_ = std::fmod(++index_, frameNumber);
   }
 
-  const SDL_FRect destRect{pos.x * 2, (pos.y - rect.h) * 2, rect.w * 2, rect.h * 2};
+  const SDL_FRect destRect{pos.x * 2, (pos.y - rect.h) * 2, rect.w * 2,
+                           rect.h * 2};
 
-  const SDL_FRect sourceRect{(index_ * rect.w) + rect.x, rect.y, rect.w, rect.h};
+  const SDL_FRect sourceRect{(index_ * rect.w) + rect.x, rect.y, rect.w,
+                             rect.h};
 
   renderer.renderTexture(texture, sourceRect, destRect);
 }
 
 export class Renderable {
 public:
-  Renderable(std::string name, const SDL_FRect &rect);
-
+  Renderable() = default;
   Renderable(const Renderable &) = default;
   Renderable(Renderable &&) = delete;
   auto operator=(const Renderable &) -> Renderable & = default;
@@ -119,26 +121,10 @@ public:
   virtual ~Renderable() = default;
 
   /// return the name the renderable
-  auto name() -> const std::string & { return renderableName_; }
-
-  auto setPos(const SDL_FPoint &pos) { renderablePos_ = pos; }
-  [[nodiscard]] auto getPos() const -> SDL_FPoint {
-    return {renderablePos_.x,
-            renderablePos_.y + (renderableLevel_ ? sourceRect_.h : 0)};
-  }
-
-  auto setLevel(bool level) -> void { renderableLevel_ = level; }
-  [[nodiscard]] auto getLevel() const -> bool { return renderableLevel_; }
-
-  /// operator less than for sorting
-  auto operator<(const Renderable &other) const -> bool {
-    return getPos().y < other.getPos().y;
-  }
+  [[nodiscard]] virtual auto name() const noexcept -> std::string = 0;
 
   /// check if the renderable is in pos
-  [[nodiscard]] auto isSamePos(const SDL_FPoint &pos) const -> bool {
-    return renderablePos_.x == pos.x && renderablePos_.y == pos.y;
-  }
+  [[nodiscard]] virtual auto isSamePos(const SDL_FPoint &pos) const -> bool = 0;
 
   /// render the Renderable to the screen
   ///
@@ -151,29 +137,7 @@ public:
   /// serialize the Renderable to an ostream
   virtual auto serialize(std::ostream &) -> void = 0;
 
-protected:
-  [[nodiscard]] auto getRenderableName() const -> std::string {
-    return renderableName_;
-  }
-  [[nodiscard]] auto getRenderablePos() const -> SDL_FPoint {
-    return renderablePos_;
-  }
-  [[nodiscard]] auto getSourceRect() const -> const SDL_FRect & {
-    return sourceRect_;
-  }
-  [[nodiscard]] auto getRenderableLevel() const -> bool {
-    return renderableLevel_;
-  }
-
-private:
-  /// the Renderable name
-  std::string renderableName_;
-  /// the Renderable Pos on the screen
-  SDL_FPoint renderablePos_{};
-  /// the Renderable source rectangle on the texture
-  SDL_FRect sourceRect_{};
-  /// whether the Renderable is on the ground or in the air
-  bool renderableLevel_{};
+  [[nodiscard]] virtual auto getPos() const noexcept -> SDL_FPoint = 0;
 };
 
 export auto operator<<(std::ostream &ostream, Renderable &renderable)
@@ -182,15 +146,14 @@ export auto operator<<(std::ostream &ostream, Renderable &renderable)
   return ostream;
 }
 
-Renderable::Renderable(std::string name, const SDL_FRect &rect)
-    : renderableName_{std::move(name)}, sourceRect_{rect} {}
+export class TileConcrete : public Renderable {};
 
 /// concrete renderable class for tiles
 ///
 /// \tparam RendererType the renderer type to use
 export template <class RendererType>
   requires isRenderer<RendererType>
-class Tile : public Renderable {
+class Tile : public TileConcrete {
   friend auto operator<<(std::ostream &ostream, const Tile<RendererType> &tile)
       -> std::ostream &;
   friend auto operator>>(std::istream &istream, Tile<RendererType> &tile)
@@ -204,7 +167,17 @@ public:
   ///
   /// \param[in] Name the name of the Renderable
   /// \param[in] Rect the Renderable source area in the texture
-  Tile(const std::string &name, const SDL_FRect &rect);
+  Tile(std::string name, const SDL_FRect &rect, const SDL_FPoint &pos,
+       bool level);
+
+  [[nodiscard]] auto name() const noexcept -> std::string override {
+    return name_;
+  }
+
+  [[nodiscard]] auto getPos() const noexcept -> SDL_FPoint override {
+    return {renderablePos_.x,
+            renderablePos_.y + (renderableLevel_ ? sourceRect_.h : 0)};
+  }
 
   /// render the renderable to the screen
   ///
@@ -220,26 +193,44 @@ public:
   /// RenderableName RendererType RenderableSourceRect RenderablePos
   /// RenderableLevel
   auto serialize(std::ostream &ostream) -> void override {
-    ostream << getRenderableName() << ' ' << tileRenderer_ << ' '
-            << getSourceRect() << ' ' << getRenderablePos() << ' '
-            << getRenderableLevel();
+    ostream << name_ << ' ' << tileRenderer_ << ' ' << sourceRect_ << ' '
+            << renderablePos_ << ' ' << renderableLevel_;
+  }
+
+  auto setLevel(bool level) -> void { renderableLevel_ = level; }
+  [[nodiscard]] auto getLevel() const -> bool { return renderableLevel_; }
+
+  auto setPos(const SDL_FPoint &pos) -> void { renderablePos_ = pos; }
+
+  [[nodiscard]] auto isSamePos(const SDL_FPoint &pos) const -> bool override {
+    return renderablePos_.x == pos.x && renderablePos_.y == pos.y;
   }
 
 private:
+  std::string name_;
   RendererType tileRenderer_;
+  /// whether the Renderable is on the ground or in the air
+  bool renderableLevel_{};
+
+  /// the Renderable Pos on the screen
+  SDL_FPoint renderablePos_{};
+  /// the Renderable source rectangle on the texture
+  SDL_FRect sourceRect_{};
 };
 
 template <class R>
   requires isRenderer<R>
-Tile<R>::Tile(const std::string &name, const SDL_FRect &rect)
-    : Renderable{name, rect} {}
+Tile<R>::Tile(std::string name, const SDL_FRect &rect, const SDL_FPoint &pos,
+              bool level)
+    : name_{std::move(name)}, renderableLevel_{level}, renderablePos_{pos},
+      sourceRect_{rect} {}
 
 template <class RendererType>
   requires isRenderer<RendererType>
 auto Tile<RendererType>::render(const SdlRenderer &renderer,
                                 const SdlTexturePtr &texture, size_t frameCount)
     -> void {
-  tileRenderer_.render(renderer, texture, getSourceRect(), getRenderablePos(),
+  tileRenderer_.render(renderer, texture, sourceRect_, renderablePos_,
                        frameCount);
 }
 
@@ -263,7 +254,9 @@ public:
         renderableIsAnimated_{animated} {}
 
   /// create the Renterable
-  auto build() -> std::unique_ptr<Renderable>;
+  auto build(const SDL_FPoint &pos, bool level)
+      -> std::unique_ptr<TileConcrete>;
+  auto build() -> std::unique_ptr<TileConcrete>;
 
   /// get the name of the Renderable
   auto name() -> const std::string & { return renderableName_; }
@@ -281,19 +274,33 @@ private:
   bool renderableLevel_{};
 };
 
-auto RendererBuilder::build() -> std::unique_ptr<Renderable> {
+auto RendererBuilder::build(const SDL_FPoint &pos, bool level)
+    -> std::unique_ptr<TileConcrete> {
 
-  std::unique_ptr<Renderable> renderable;
+  std::unique_ptr<TileConcrete> renderable;
   if (renderableIsAnimated_) {
     renderable = std::make_unique<Tile<AnimatedRenderer>>(
-        renderableName_, renderableSourceRect_);
+        renderableName_, renderableSourceRect_, pos, level);
   } else {
-    renderable = std::make_unique<Tile<StaticRenderer>>(renderableName_,
-                                                        renderableSourceRect_);
+    renderable = std::make_unique<Tile<StaticRenderer>>(
+        renderableName_, renderableSourceRect_, pos, level);
   }
 
-  renderable->setLevel(renderableLevel_);
-  renderable->setPos(renderablePos_);
+  return renderable;
+}
+auto RendererBuilder::build() -> std::unique_ptr<TileConcrete> {
+
+  std::unique_ptr<TileConcrete> renderable;
+  if (renderableIsAnimated_) {
+    renderable = std::make_unique<Tile<AnimatedRenderer>>(
+        renderableName_, renderableSourceRect_, renderablePos_,
+        renderableLevel_);
+  } else {
+    renderable = std::make_unique<Tile<StaticRenderer>>(
+        renderableName_, renderableSourceRect_, renderablePos_,
+        renderableLevel_);
+  }
+
   return renderable;
 }
 

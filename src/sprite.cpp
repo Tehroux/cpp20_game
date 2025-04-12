@@ -6,6 +6,7 @@ module;
 
 #include <cmath>
 #include <string>
+#include <utility>
 
 export module sprite;
 import tile;
@@ -13,7 +14,7 @@ import sdlHelpers;
 
 export class CharacterSprite final : public Renderable {
 public:
-  CharacterSprite(const std::string &name, const SDL_FRect &rect, bool canRun,
+  CharacterSprite(std::string name, const SDL_FRect &rect, bool canRun,
                   bool canHit);
 
   CharacterSprite(const CharacterSprite &) = default;
@@ -23,13 +24,17 @@ public:
 
   ~CharacterSprite() override = default;
 
-  [[nodiscard]] auto getIdleTextureRect() const -> SDL_FRect;
-  [[nodiscard]] auto getRunTextureRect() const -> SDL_FRect;
-  [[nodiscard]] auto getHitTextureRect() const -> SDL_FRect;
+  [[nodiscard]] auto getIdleTextureRect() const noexcept -> SDL_FRect;
+  [[nodiscard]] auto getRunTextureRect() const noexcept -> SDL_FRect;
+  [[nodiscard]] auto getHitTextureRect() const noexcept -> SDL_FRect;
   [[nodiscard]] auto getTextureRect() -> SDL_FRect;
-  [[nodiscard]] auto getDestRect(const SDL_FPoint &pos) const -> SDL_FRect;
+  [[nodiscard]] auto getDestRect() const noexcept -> SDL_FRect;
 
   auto serialize(std::ostream &ostream) -> void override {}
+
+  [[nodiscard]] auto name() const noexcept -> std::string override {
+    return renderableName_;
+  }
 
   auto incIndex();
 
@@ -44,6 +49,16 @@ public:
   auto render(const SdlRenderer &renderer, const SdlTexturePtr &texture,
               size_t frameCount) -> void override;
 
+  [[nodiscard]] auto isSamePos(const SDL_FPoint &pos) const -> bool override {
+    return renderablePos_.x == pos.x && renderablePos_.y == pos.y;
+  }
+
+  auto setPos(const SDL_FPoint &pos) noexcept -> void { renderablePos_ = pos; };
+  [[nodiscard]] auto getPos() const noexcept -> SDL_FPoint override {
+    return {renderablePos_.x,
+            renderablePos_.y + (renderableLevel_ ? sourceRect_.h : 0)};
+  }
+
 private:
   static constexpr float runFrameIndex = 4;
   static constexpr float hitFrameIndex = 8;
@@ -56,29 +71,41 @@ private:
   bool canRun_;
   bool canHit_;
   int hitFrame_ = 0;
+
+  std::string renderableName_;
+  /// the Renderable rectangle area in the texture
+  SDL_FRect sourceRect_{};
+  /// whether the Renderable is animated
+  bool renderableIsAnimated_{};
+  /// The renderable position on the screen
+  SDL_FPoint renderablePos_{};
+  /// whether the Renderable is on the ground or in the air
+  bool renderableLevel_{};
 };
 
-CharacterSprite::CharacterSprite(const std::string &name, const SDL_FRect &rect,
+CharacterSprite::CharacterSprite(std::string name, const SDL_FRect &rect,
                                  bool canRun, bool canHit)
-    : Renderable{name, rect}, canRun_{canRun}, canHit_{canHit} {}
+    : renderableName_{std::move(name)}, sourceRect_{rect},
+      canRun_{canRun}, canHit_{canHit} {}
 
-auto CharacterSprite::getIdleTextureRect() const -> SDL_FRect {
+auto CharacterSprite::getIdleTextureRect() const noexcept -> SDL_FRect {
 
-  auto sourceRect = getSourceRect();
-  return {sourceRect.x + (index_ * sourceRect.w), sourceRect.y, sourceRect.w,
-          sourceRect.h};
+  return {sourceRect_.x + (index_ * sourceRect_.w),
+          sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
-auto CharacterSprite::getRunTextureRect() const -> SDL_FRect {
-  auto sourceRect = getSourceRect();
-  return {sourceRect.x + ((runFrameIndex + index_) * sourceRect.w),
-          sourceRect.y, sourceRect.w, sourceRect.h};
+auto CharacterSprite::getRunTextureRect() const noexcept -> SDL_FRect {
+  return {sourceRect_.x +
+              ((runFrameIndex + index_) * sourceRect_.w),
+          sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
-auto CharacterSprite::getHitTextureRect() const -> SDL_FRect {
-  auto sourceRect = getSourceRect();
-  return {sourceRect.x + (hitFrameIndex * sourceRect.w), sourceRect.y,
-          sourceRect.w, sourceRect.h};
+auto CharacterSprite::getHitTextureRect() const noexcept -> SDL_FRect {
+  return {sourceRect_.x + (hitFrameIndex * sourceRect_.w),
+          sourceRect_.y, sourceRect_.w,
+          sourceRect_.h};
 }
 
 auto CharacterSprite::getTextureRect() -> SDL_FRect {
@@ -97,9 +124,12 @@ auto CharacterSprite::getTextureRect() -> SDL_FRect {
   return getIdleTextureRect();
 }
 
-auto CharacterSprite::getDestRect(const SDL_FPoint &pos) const -> SDL_FRect {
-  auto sourceRect = getSourceRect();
-  return {pos.x, pos.y, sourceRect.w * 2, sourceRect.h * 2};
+auto CharacterSprite::getDestRect() const noexcept -> SDL_FRect {
+  const SDL_FRect pos{.x = renderablePos_.x * 2,
+                      .y = (renderablePos_.y - sourceRect_.h) * 2};
+
+  return {pos.x, pos.y, sourceRect_.w * 2,
+          sourceRect_.h * 2};
 }
 
 auto CharacterSprite::incIndex() {
@@ -113,10 +143,7 @@ auto CharacterSprite::render(const SdlRenderer &renderer,
     incIndex();
   }
 
-  auto pos = getPos();
-
-  const auto sourceRect = getSourceRect();
-  const auto destRect = getDestRect({pos.x * 2, (pos.y - sourceRect.h) * 2});
+  const auto destRect = getDestRect();
   const auto sourceTextureRect = getTextureRect();
 
   if (direction_) {

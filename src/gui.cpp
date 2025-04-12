@@ -41,8 +41,8 @@ public:
               std::vector<CharacterSprite> &characters,
               std::vector<CharacterSprite> &enemies,
               std::vector<RendererBuilder> &tiles,
-              std::vector<std::unique_ptr<Renderable>> &map,
-              std::vector<std::unique_ptr<Renderable>> &mapWall) -> void;
+              std::vector<std::unique_ptr<TileConcrete>> &map,
+              std::vector<std::unique_ptr<TileConcrete>> &mapWall) -> void;
 
   [[nodiscard]] auto isEditorMode() const -> bool { return checkEditor_; }
   [[nodiscard]] auto isLevel() const -> bool { return checkLevel_; }
@@ -56,8 +56,8 @@ public:
   auto renderEditorOptions(std::vector<CharacterSprite> &characters,
                            std::vector<CharacterSprite> &enemies,
                            std::vector<RendererBuilder> &tiles,
-                           std::vector<std::unique_ptr<Renderable>> &map,
-                           std::vector<std::unique_ptr<Renderable>> &mapWall)
+                           std::vector<std::unique_ptr<TileConcrete>> &map,
+                           std::vector<std::unique_ptr<TileConcrete>> &mapWall)
 
       -> void;
 
@@ -110,8 +110,8 @@ auto Gui::render(const SdlRenderer &renderer,
                  std::vector<CharacterSprite> &characters,
                  std::vector<CharacterSprite> &enemies,
                  std::vector<RendererBuilder> &tiles,
-                 std::vector<std::unique_ptr<Renderable>> &map,
-                 std::vector<std::unique_ptr<Renderable>> &mapWall) -> void {
+                 std::vector<std::unique_ptr<TileConcrete>> &map,
+                 std::vector<std::unique_ptr<TileConcrete>> &mapWall) -> void {
 
   ImGui_ImplSDLRenderer3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
@@ -165,8 +165,8 @@ auto Gui::renderComboBox(const char *name, Array &array, size_t &currentIndex)
 auto Gui::renderEditorOptions(std::vector<CharacterSprite> &characters,
                               std::vector<CharacterSprite> &enemies,
                               std::vector<RendererBuilder> &tiles,
-                              std::vector<std::unique_ptr<Renderable>> &map,
-                              std::vector<std::unique_ptr<Renderable>> &mapWall)
+                              std::vector<std::unique_ptr<TileConcrete>> &map,
+                              std::vector<std::unique_ptr<TileConcrete>> &mapWall)
     -> void {
   ImGui::Begin("Editor");
   renderComboBox("Character Selector", characters, characterIndex_);
